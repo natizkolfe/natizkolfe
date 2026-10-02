@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open [http://127.0.0.1:43123](http://127.0.0.1:43123).
+Open [http://127.0.0.1:47231](http://127.0.0.1:47231).
 
 Orders, accounts, and menu edits are stored in `data/db.json`. That file is created on first launch and is not committed. Delete it to return to the seed menu and an empty order book.
 
@@ -41,7 +41,7 @@ The code is created at payment and sent, in this demo, as an in-app text when st
 
 ## Kitchen
 
-Open [the staff entrance](http://127.0.0.1:43123/admin). The default password is `gebeta-staff`.
+Open [the staff entrance](http://127.0.0.1:47231/admin). The default password is `gebeta-staff`.
 
 Set a different one with `ADMIN_PASSWORD` in the environment. Session signing does not depend on a hosted secret; cookies are random tokens stored as hashes.
 
