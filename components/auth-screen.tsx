@@ -57,7 +57,7 @@ export function AuthScreen({ mode }: { mode: "login" | "join" }) {
             : "Open an order you already placed, or pick up a draft that is waiting to be paid."
         }
       />
-      <form className="mt-8 grid gap-4 rounded-xl border border-border bg-card p-5" onSubmit={submit}>
+      <form className="mt-8 grid gap-4 rounded-xl border border-border bg-card p-5" autoComplete="off" onSubmit={submit}>
         {joining ? (
           <>
             <Field id="name" label="Name" value={name} onChange={setName} />
@@ -104,7 +104,17 @@ function Field({
   return (
     <div className="grid gap-2">
       <Label htmlFor={id}>{label}</Label>
-      <Input id={id} className={control} type={type} value={value} onChange={(event) => onChange(event.target.value)} required />
+      <Input
+        id={id}
+        name={`gebeta-${id}`}
+        className={control}
+        type={type}
+        value={value}
+        autoComplete="off"
+        onChange={(event) => onChange(event.target.value)}
+        onInput={(event) => onChange(event.currentTarget.value)}
+        required
+      />
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );

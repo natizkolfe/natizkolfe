@@ -61,14 +61,22 @@ export function PaymentForm({
   }
 
   return (
-    <form className="grid gap-4" onSubmit={submit}>
+    <form className="grid gap-4" autoComplete="off" onSubmit={submit}>
       <div className="rounded-lg border border-gold/40 bg-accent/40 px-3 py-3 text-sm leading-6">
         Demo checkout. <span className="font-medium">4242 4242 4242 4242</span> is approved. A number starting with{" "}
         <span className="font-medium">4000</span> is declined, and the order stays unpaid.
       </div>
       <div className="grid gap-2">
         <Label htmlFor="card-name">Name on card</Label>
-        <Input id="card-name" className={control} value={name} onChange={(event) => setName(event.target.value)} />
+        <Input
+          id="card-name"
+          name="gebeta-card-name"
+          className={control}
+          autoComplete="off"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onInput={(event) => setName(event.currentTarget.value)}
+        />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="card-number">Card number</Label>
@@ -76,10 +84,12 @@ export function PaymentForm({
           id="card-number"
           className={control}
           inputMode="numeric"
+          name="gebeta-card-number"
           autoComplete="off"
           placeholder="4242 4242 4242 4242"
           value={cardNumber}
           onChange={(event) => setCardNumber(event.target.value)}
+          onInput={(event) => setCardNumber(event.currentTarget.value)}
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -88,9 +98,12 @@ export function PaymentForm({
           <Input
             id="expiry"
             className={control}
+            name="gebeta-expiry"
+            autoComplete="off"
             placeholder="MM/YY"
             value={expiry}
             onChange={(event) => setExpiry(event.target.value)}
+            onInput={(event) => setExpiry(event.currentTarget.value)}
           />
         </div>
         <div className="grid gap-2">
@@ -98,9 +111,12 @@ export function PaymentForm({
           <Input
             id="cvc"
             className={control}
+            name="gebeta-cvc"
+            autoComplete="off"
             placeholder="123"
             value={cvc}
             onChange={(event) => setCvc(event.target.value)}
+            onInput={(event) => setCvc(event.currentTarget.value)}
           />
         </div>
       </div>
