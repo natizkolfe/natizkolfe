@@ -33,14 +33,14 @@ export function CustomizeSheet({
 }) {
   const item = draft?.item;
   return (
-    <Sheet open={Boolean(draft)} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={Boolean(draft)} onOpenChange={(open) => !open && onClose()} disablePointerDismissal>
       <SheetContent
         side="right"
-        className="w-full overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-md"
+        className="h-full w-full overflow-hidden data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
       >
         {draft && item ? (
           <>
-            <SheetHeader className="pr-10">
+            <SheetHeader className="shrink-0 pr-10">
               <div className="flex items-center gap-3">
                 <DishSwatch color={item.swatch} name={item.name} />
                 <div>
@@ -51,7 +51,7 @@ export function CustomizeSheet({
                 </div>
               </div>
             </SheetHeader>
-            <div className="grid gap-5 px-4 pb-4">
+            <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto px-4 pb-4">
               <p className="text-sm leading-6 text-muted-foreground">{item.description}</p>
               {item.kitchenNote ? <p className="text-sm leading-6">{item.kitchenNote}</p> : null}
 
@@ -102,6 +102,22 @@ export function CustomizeSheet({
                 <Stepper
                   value={draft.quantity}
                   onChange={(quantity) => onChange({ ...draft, quantity })}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="kitchen-notes">Special instructions for the kitchen</Label>
+                <Textarea
+                  id="kitchen-notes"
+                  value={draft.customization.notes}
+                  maxLength={400}
+                  placeholder="Anything else about this dish only"
+                  onChange={(event) =>
+                    onChange({
+                      ...draft,
+                      customization: { ...draft.customization, notes: event.target.value },
+                    })
+                  }
                 />
               </div>
 
@@ -256,23 +272,8 @@ export function CustomizeSheet({
                 </div>
               ) : null}
 
-              <div className="grid gap-2">
-                <Label htmlFor="kitchen-notes">Special instructions for the kitchen</Label>
-                <Textarea
-                  id="kitchen-notes"
-                  value={draft.customization.notes}
-                  maxLength={400}
-                  placeholder="Anything else about this dish only"
-                  onChange={(event) =>
-                    onChange({
-                      ...draft,
-                      customization: { ...draft.customization, notes: event.target.value },
-                    })
-                  }
-                />
-              </div>
             </div>
-            <SheetFooter>
+            <SheetFooter className="shrink-0 border-t border-border bg-popover">
               <Button type="button" className="h-11" onClick={onSave}>
                 {draft.lineId ? "Save this dish" : "Add this dish"}
               </Button>
