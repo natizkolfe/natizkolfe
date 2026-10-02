@@ -36,6 +36,7 @@ export function CustomizeSheet({
     <Sheet open={Boolean(draft)} onOpenChange={(open) => !open && onClose()} disablePointerDismissal>
       <SheetContent
         side="right"
+        showCloseButton={false}
         className="h-full w-full overflow-hidden data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
       >
         {draft && item ? (
@@ -273,8 +274,11 @@ export function CustomizeSheet({
               ) : null}
 
             </div>
-            <SheetFooter className="shrink-0 border-t border-border bg-popover">
-              <Button type="button" className="h-11" onClick={onSave}>
+            <SheetFooter className="shrink-0 border-t border-border bg-popover sm:flex-row">
+              <Button type="button" variant="outline" className="h-11 bg-background" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="button" className="h-11 sm:flex-1" onClick={onSave}>
                 {draft.lineId ? "Save this dish" : "Add this dish"}
               </Button>
             </SheetFooter>
