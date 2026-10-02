@@ -31,7 +31,8 @@ export function SiteHeader() {
         </Link>
         <nav className="ml-4 hidden items-center gap-1 md:flex">
           {LINKS.map((link) => {
-            const active = pathname === link.href || (link.href.startsWith("/order") && pathname.startsWith("/order"));
+            const path = link.href.split("?")[0];
+            const active = path !== "/order" && (pathname === path || pathname.startsWith(`${path}/`));
             return (
               <Link
                 key={link.href}
