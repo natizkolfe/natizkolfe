@@ -97,7 +97,7 @@ export function defaultDraft(settings: PublicSettings, kind: OrderDraft["kind"] 
   return {
     kind,
     fulfillment: "pickup",
-    fastingPreference: "mixed",
+    fastingPreference: "fasting",
     durationDays: 7,
     startDate: settings.earliestWeeklyDate,
     guestCount: Math.max(settings.minCateringGuests, 12),

@@ -72,6 +72,7 @@ export interface DraftLine {
   dayIndex: number | null;
   mealSlot: MealSlot | null;
   customization: Customization;
+  source?: "included" | "addon";
 }
 
 export interface OrderDraft {

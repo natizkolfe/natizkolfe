@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { PageIntro, Shell } from "@/components/page-intro";
@@ -37,9 +36,15 @@ export function OrderSetup() {
     if (!hydrated || !settings) return;
     const requested = params.get("kind");
     const kind: OrderKind | null = requested === "catering" || requested === "weekly" ? requested : null;
+    const table = params.get("table");
+    const requestedTable: FastingPreference | null =
+      table === "fasting" || table === "non_fasting" ? table : null;
     if (!draft) {
       const next = defaultDraft(settings, kind ?? "weekly");
-      if (user?.preferences.fastingPreference) next.fastingPreference = user.preferences.fastingPreference;
+      if (requestedTable) next.fastingPreference = requestedTable;
+      else if (user?.preferences.fastingPreference && user.preferences.fastingPreference !== "mixed") {
+        next.fastingPreference = user.preferences.fastingPreference;
+      }
       setDraft(next);
       return;
     }
@@ -47,9 +52,14 @@ export function OrderSetup() {
       setDraft({
         ...defaultDraft(settings, kind),
         fulfillment: draft.fulfillment,
-        fastingPreference: draft.fastingPreference,
+        fastingPreference: requestedTable ?? draft.fastingPreference,
         address: draft.address,
+        lines: [],
       });
+      return;
+    }
+    if (requestedTable && draft.fastingPreference !== requestedTable) {
+      setDraft({ ...draft, fastingPreference: requestedTable, lines: [] });
     }
   }, [hydrated, settings, draft, params, setDraft, user?.preferences.fastingPreference]);
 
@@ -130,20 +140,20 @@ export function OrderSetup() {
       <PageIntro
         eyebrow="New order"
         title={active.kind === "weekly" ? "Plan the week." : "Count the table."}
-        lede="Gebeta cooks to order. Choose the shape of the order first. You will customize each dish after this, and payment has to clear before the kitchen confirms it."
+        lede="Choose the service and whether the table is fasting or non-fasting. The matching package is included next. Payment still has to clear before the kitchen confirms it."
       />
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         <KindCard
           selected={active.kind === "weekly"}
           title="Weekly meal preparation"
-          detail="Seven or fourteen days. Put different dishes on lunch and dinner, and change any single plate."
+          detail="Seven or fourteen days of the standard package, with optional extra dishes."
           onClick={() => chooseKind("weekly")}
         />
         <KindCard
           selected={active.kind === "catering"}
           title="Catering by guest count"
-          detail="Portions and price follow the number of people. Spreads can mix fasting and non-fasting food."
+          detail="The standard package is portioned for the number of guests. Extra dishes are optional."
           onClick={() => chooseKind("catering")}
         />
       </div>
@@ -233,13 +243,12 @@ export function OrderSetup() {
           )}
 
           <fieldset className="grid gap-2">
-            <legend className="text-sm font-medium">Fasting preference for this order</legend>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <legend className="text-sm font-medium">Fasting or non-fasting</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
               {(
                 [
-                  ["fasting", "Fasting", "No meat or dairy."],
-                  ["non_fasting", "Non-fasting", "Meat, eggs, and butter are fine."],
-                  ["mixed", "Mixed", "Choose plate by plate."],
+                  ["fasting", "Fasting package", "Misir, shiro, greens, and vegetables. No meat or dairy."],
+                  ["non_fasting", "Non-fasting package", "Doro wot, tibs, alicha, and greens."],
                 ] as const
               ).map(([value, label, detail]) => (
                 <button
@@ -257,7 +266,7 @@ export function OrderSetup() {
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              This sets the starting point. A single dish can still be changed when you add it.
+              This chooses the standard package. The included dishes are already selected.
             </p>
           </fieldset>
 
@@ -309,10 +318,7 @@ export function OrderSetup() {
 
           <div className="flex flex-wrap gap-3">
             <Button type="submit" className="h-11 px-4">
-              Choose dishes
-            </Button>
-            <Button variant="outline" className="h-11 bg-background px-4" render={<Link href="/menu" />}>
-              Browse the menu first
+              View the package
             </Button>
           </div>
         </form>
@@ -320,9 +326,9 @@ export function OrderSetup() {
         <aside className="h-fit rounded-xl border border-border bg-card p-5">
           <p className="text-xs tracking-[0.16em] text-primary uppercase">Before you pay</p>
           <ol className="mt-4 grid gap-3 text-sm leading-6">
-            <li>1. Set the dates and the headcount.</li>
-            <li>2. Customize each dish on its own.</li>
-            <li>3. Review the order.</li>
+            <li>1. Choose the service and the package.</li>
+            <li>2. Add optional dishes only if you want them.</li>
+            <li>3. Set spice and notes, then review.</li>
             <li>4. Pay. Nothing is confirmed until the card clears.</li>
           </ol>
           {active.kind === "catering" && capacity ? (

@@ -22,7 +22,7 @@ export function SiteFooter() {
           <p className="font-medium">Order</p>
           <div className="grid text-muted-foreground">
             <Link href="/menu" className="hover:text-foreground">
-              Menu
+              Packages
             </Link>
             <Link href="/order?kind=weekly" className="hover:text-foreground">
               Weekly meal preparation

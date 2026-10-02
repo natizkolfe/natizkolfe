@@ -11,7 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { cn } from "cn";
 
 const LINKS = [
-  { href: "/menu", label: "Menu" },
+  { href: "/menu", label: "Packages" },
   { href: "/order?kind=weekly", label: "Weekly meals" },
   { href: "/order?kind=catering", label: "Catering" },
   { href: "/orders", label: "Your orders" },

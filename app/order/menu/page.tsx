@@ -1,5 +1,5 @@
-import { MenuBuilder } from "@/components/menu-builder";
+import { PackageBuilder } from "@/components/package-builder";
 
 export default function OrderMenuPage() {
-  return <MenuBuilder />;
+  return <PackageBuilder />;
 }
