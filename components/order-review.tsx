@@ -9,7 +9,10 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client-api";
 import { addDays, formatDate, formatTime } from "@/lib/dates";
 import { FASTING_LABEL, FULFILLMENT_LABEL, money } from "@/lib/format";
-import { dishLabel } from "@/lib/packages";
+import { DishPhoto } from "@/components/dish-photo";
+import { FulfillmentChoice } from "@/components/fulfillment-choice";
+import { WeeklyContainer } from "@/components/weekly-container";
+import { addonUnitPrice, dishLabel, dishSide, serviceQuote, sideLabel } from "@/lib/packages";
 import { describeCustomization, lineCountLabel, scheduleProblems, unitPrice } from "@/lib/orders";
 import type { MenuItem, PublicSettings } from "@/lib/types";
 
@@ -41,7 +44,7 @@ export function OrderReview() {
   if (!draft || draft.lines.length === 0) {
     return (
       <Shell>
-        <PageIntro title="Nothing to review yet" lede="Choose a fasting or non-fasting package. The standard dishes come with it." />
+        <PageIntro title="Nothing to review yet" lede="Choose a fasting, non-fasting, or mixed package. A mixed order needs at least one standard dish." />
         <Button className="mt-6 h-11 px-4" render={<Link href={draft ? "/order/menu" : "/order"} />}>
           {draft ? "Back to the package" : "Start an order"}
         </Button>
@@ -65,15 +68,29 @@ export function OrderReview() {
     );
   }
 
-  const problem = scheduleProblems(draft, settings);
+  const problem =
+    scheduleProblems(draft, settings) ??
+    (draft.fastingPreference === "mixed" && !draft.lines.some((line) => line.source === "included")
+      ? "Choose at least one standard dish for the mixed package. The package price stays the same."
+      : null);
   const rows = draft.lines.map((line) => {
     const item = menu.find((entry) => entry.id === line.itemId);
     return { line, item };
   });
-  const subtotal = rows.reduce((sum, row) => {
-    if (!row.item) return sum;
-    return sum + unitPrice(row.item, row.line.customization) * row.line.quantity;
-  }, 0);
+  const quote = serviceQuote(
+    draft,
+    draft.lines.filter((line) => line.source === "addon").map((line) => line.itemId),
+  );
+  const subtotal = quote
+    ? quote.total
+    : rows.reduce((sum, row) => {
+        if (!row.item) return sum;
+        const perDay =
+          row.line.source === "addon"
+            ? addonUnitPrice(draft.fastingPreference, row.line.itemId)
+            : unitPrice(row.item, row.line.customization);
+        return sum + perDay * row.line.quantity;
+      }, 0);
 
   return (
     <Shell>
@@ -116,9 +133,12 @@ export function OrderReview() {
               </div>
             </dl>
           </section>
+          {draft.kind === "weekly" ? (
+            <WeeklyContainer days={draft.durationDays} selected />
+          ) : null}
           <section className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="font-display text-2xl">Package</h2>
+              <h2 className="font-display text-2xl">{quote ? "Catering order summary" : "Package"}</h2>
               <span className="text-sm text-muted-foreground">{lineCountLabel(draft.lines)}</span>
             </div>
             {(["included", "addon", "other"] as const).map((group) => {
@@ -127,15 +147,31 @@ export function OrderReview() {
                 return line.source === group;
               });
               if (groupRows.length === 0) return null;
-              const groupTotal = groupRows.reduce((sum, row) => {
-                if (!row.item) return sum;
-                return sum + unitPrice(row.item, row.line.customization) * row.line.quantity;
-              }, 0);
+              const groupTotal = quote
+                ? group === "included"
+                  ? quote.baseTotal
+                  : group === "addon"
+                    ? quote.addons.reduce((sum, addon) => sum + addon.total, 0)
+                    : 0
+                : groupRows.reduce((sum, row) => {
+                    if (!row.item) return sum;
+                    const perDay =
+                      row.line.source === "addon"
+                        ? addonUnitPrice(draft.fastingPreference, row.line.itemId)
+                        : unitPrice(row.item, row.line.customization);
+                    return sum + perDay * row.line.quantity;
+                  }, 0);
               return (
                 <div key={group} className="mt-5">
                   <div className="flex items-baseline justify-between gap-3">
                     <h3 className="text-xs tracking-[0.14em] text-primary uppercase">
-                      {group === "included" ? "Included in Standard Package" : group === "addon" ? "Optional add-ons" : "Other dishes"}
+                      {group === "included"
+                        ? draft.fastingPreference === "mixed"
+                          ? "Included standard selections"
+                          : "Included in Standard Package"
+                        : group === "addon"
+                          ? "Paid add-ons"
+                          : "Other dishes"}
                     </h3>
                     <span className="text-sm tabular-nums">{money(groupTotal)}</span>
                   </div>
@@ -143,16 +179,32 @@ export function OrderReview() {
                     {groupRows.map(({ line, item }) => (
                       <li key={line.lineId} className="border-t border-border pt-4">
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-medium">{dishLabel(line.itemId) ?? item?.name ?? "Unavailable dish"}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {draft.kind === "weekly"
-                                ? `One serving each day · ${draft.durationDays} days`
-                                : `One serving for each of ${draft.guestCount} guests`}
-                            </p>
+                          <div className="flex items-start gap-3">
+                            <DishPhoto id={line.itemId} />
+                            <div>
+                              <p className="font-medium">
+                                {dishLabel(line.itemId) ?? item?.name ?? "Unavailable dish"}
+                                {draft.fastingPreference === "mixed" && dishSide(line.itemId)
+                                  ? ` — ${sideLabel(dishSide(line.itemId)!)}`
+                                  : ""}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {draft.kind === "weekly"
+                                  ? `Packed for each day · ${draft.durationDays} days`
+                                  : group === "included"
+                                    ? "Included in the standard package"
+                                    : `Extra for each of ${draft.guestCount} guests`}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-sm">
-                            {group === "included" ? "Included" : item ? `+ ${money(unitPrice(item, line.customization) * line.quantity)}` : "—"}
+                          <p className="text-right text-sm tabular-nums">
+                            {group === "included"
+                              ? "Included"
+                              : quote
+                                ? `+${money(quote.addons.find((addon) => addon.id === line.itemId)?.perPerson ?? 0)} × ${quote.count} = ${money(quote.addons.find((addon) => addon.id === line.itemId)?.total ?? 0)}`
+                                : item
+                                  ? `+ ${money(addonUnitPrice(draft.fastingPreference, line.itemId) * line.quantity)}`
+                                  : "—"}
                           </p>
                         </div>
                         {item ? (
@@ -184,13 +236,31 @@ export function OrderReview() {
               );
             })}
           </section>
+          {draft.fulfillment === "delivery" && draft.delivery ? (
+            <section className="rounded-xl border border-border bg-card p-5">
+              <h2 className="font-display text-2xl">Delivery</h2>
+              <p className="mt-2 text-sm">{draft.delivery.address}</p>
+              <p className="mt-2 text-sm tabular-nums">
+                {draft.delivery.miles} miles × {money(draft.delivery.ratePerMile)} = {money(draft.delivery.fee)}
+              </p>
+            </section>
+          ) : null}
+          <FulfillmentChoice />
         </div>
         <aside className="h-fit rounded-xl border border-border bg-card p-5 lg:sticky lg:top-24">
-          <p className="text-sm text-muted-foreground">Total due before confirmation</p>
-          <p className="mt-1 font-display text-4xl">{money(subtotal)}</p>
-          {draft.kind === "catering" ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              {money(subtotal / draft.guestCount)} for each of {draft.guestCount} guests.
+          <p className="text-sm text-muted-foreground">
+            {quote ? "Estimated total" : "Total due before confirmation"}
+          </p>
+          <p className="mt-1 font-display text-4xl">{money(subtotal + (draft.fulfillment === "delivery" ? draft.delivery?.fee ?? 0 : 0))}</p>
+          {draft.fulfillment === "delivery" && draft.delivery ? (
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Includes delivery, {draft.delivery.miles} miles × {money(draft.delivery.ratePerMile)} = {money(draft.delivery.fee)}.
+            </p>
+          ) : null}
+          {quote ? (
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              {money(quote.basePer)} × {quote.count} {quote.countLabel}
+              {quote.addons.length ? `, plus ${quote.addons.map((addon) => addon.label).join(", ")}` : ""}.
             </p>
           ) : null}
           <p className="mt-4 text-sm leading-6 text-muted-foreground">

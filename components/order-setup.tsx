@@ -2,16 +2,21 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { DishPhoto } from "@/components/dish-photo";
+import { GuestCountField } from "@/components/guest-count-field";
+import { FulfillmentChoice } from "@/components/fulfillment-choice";
 import { PageIntro, Shell } from "@/components/page-intro";
+import { WeeklyContainer } from "@/components/weekly-container";
 import { useAuth, useDraft } from "@/components/providers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/client-api";
 import { formatDate } from "@/lib/dates";
+import { money } from "@/lib/format";
+import { CATERING_PRICE_PER_PERSON, TABLE_OPTIONS } from "@/lib/packages";
 import { defaultDraft, scheduleProblems } from "@/lib/orders";
-import type { FastingPreference, Fulfillment, OrderKind, PublicSettings } from "@/lib/types";
+import type { FastingPreference, OrderKind, PublicSettings } from "@/lib/types";
 import { cn } from "cn";
 
 const control = "h-11 bg-card px-3";
@@ -38,11 +43,11 @@ export function OrderSetup() {
     const kind: OrderKind | null = requested === "catering" || requested === "weekly" ? requested : null;
     const table = params.get("table");
     const requestedTable: FastingPreference | null =
-      table === "fasting" || table === "non_fasting" ? table : null;
+      table === "fasting" || table === "non_fasting" || table === "mixed" ? table : null;
     if (!draft) {
       const next = defaultDraft(settings, kind ?? "weekly");
       if (requestedTable) next.fastingPreference = requestedTable;
-      else if (user?.preferences.fastingPreference && user.preferences.fastingPreference !== "mixed") {
+      else if (user?.preferences.fastingPreference) {
         next.fastingPreference = user.preferences.fastingPreference;
       }
       setDraft(next);
@@ -54,6 +59,7 @@ export function OrderSetup() {
         fulfillment: draft.fulfillment,
         fastingPreference: requestedTable ?? draft.fastingPreference,
         address: draft.address,
+        delivery: draft.delivery ?? null,
         lines: [],
       });
       return;
@@ -82,6 +88,16 @@ export function OrderSetup() {
     };
   }, [active, date]);
 
+  useEffect(() => {
+    if (!settings || !active || active.kind !== "catering") return;
+    if (active.guestCount >= settings.minCateringGuests && active.guestCount <= settings.maxGuestsPerDay) return;
+    const guestCount = Math.min(
+      settings.maxGuestsPerDay,
+      Math.max(settings.minCateringGuests, active.guestCount || settings.minCateringGuests),
+    );
+    update({ guestCount });
+  }, [settings, active]);
+
   const problem = useMemo(() => {
     if (!active || !settings) return null;
     return scheduleProblems(active, settings);
@@ -98,6 +114,7 @@ export function OrderSetup() {
       fulfillment: active.fulfillment,
       fastingPreference: active.fastingPreference,
       address: active.address,
+      delivery: active.delivery ?? null,
     });
     router.replace(kind === "weekly" ? "/order?kind=weekly" : "/order?kind=catering");
   }
@@ -140,7 +157,7 @@ export function OrderSetup() {
       <PageIntro
         eyebrow="New order"
         title={active.kind === "weekly" ? "Plan the week." : "Count the table."}
-        lede="Choose the service and whether the table is fasting or non-fasting. The matching package is included next. Payment still has to clear before the kitchen confirms it."
+        lede="Choose the service, then fasting, non-fasting, or a mixed order. A mixed order uses the same standard price and lets you choose the dishes. Payment still has to clear before the kitchen confirms it."
       />
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
@@ -153,7 +170,7 @@ export function OrderSetup() {
         <KindCard
           selected={active.kind === "catering"}
           title="Catering by guest count"
-          detail="The standard package is portioned for the number of guests. Extra dishes are optional."
+          detail={`The standard meal starts at ${money(CATERING_PRICE_PER_PERSON)} per person. Add-ons are extra per person.`}
           onClick={() => chooseKind("catering")}
         />
       </div>
@@ -167,23 +184,26 @@ export function OrderSetup() {
           }}
         >
           {active.kind === "weekly" ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <fieldset className="grid gap-2">
-                <legend className="text-sm font-medium">Length</legend>
-                <div className="grid grid-cols-2 gap-2">
-                  {[7, 14].map((days) => (
-                    <button
-                      key={days}
-                      type="button"
-                      onClick={() => update({ durationDays: days as 7 | 14 })}
-                      className={cn(
-                        "h-11 rounded-lg border text-sm",
-                        active.durationDays === days ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background",
-                      )}
-                    >
-                      {days} days
-                    </button>
-                  ))}
+            <div className="grid gap-4">
+              <fieldset className="grid gap-3">
+                <legend className="text-sm font-medium">Choose the container</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {([7, 14] as const).map((days) => {
+                    const selected = active.durationDays === days;
+                    return (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => update({ durationDays: days })}
+                        className={cn(
+                          "rounded-xl border p-3 text-left",
+                          selected ? "border-primary bg-primary/5 shadow-[inset_0_0_0_1px_var(--primary)]" : "border-border bg-background",
+                        )}
+                      >
+                        <WeeklyContainer days={days} selected={selected} />
+                      </button>
+                    );
+                  })}
                 </div>
               </fieldset>
               <div className="grid gap-2">
@@ -205,18 +225,22 @@ export function OrderSetup() {
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="grid gap-2">
                 <Label htmlFor="guests">Guests</Label>
-                <Input
+                <GuestCountField
                   id="guests"
-                  className={control}
-                  type="number"
+                  count={active.guestCount}
                   min={settings.minCateringGuests}
                   max={settings.maxGuestsPerDay}
-                  value={active.guestCount}
-                  onChange={(event) => update({ guestCount: Number(event.target.value) })}
+                  onChange={(guestCount) => update({ guestCount })}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {settings.minCateringGuests} to {settings.maxGuestsPerDay} people.
+                  Standard package is {money(CATERING_PRICE_PER_PERSON)} per person.
                 </p>
+                {Number.isInteger(active.guestCount) && active.guestCount > 0 ? (
+                  <p className="text-sm">
+                    {active.guestCount} × {money(CATERING_PRICE_PER_PERSON)} ={" "}
+                    {money(CATERING_PRICE_PER_PERSON * active.guestCount)} before add-ons.
+                  </p>
+                ) : null}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="eventDate">Event date</Label>
@@ -243,76 +267,39 @@ export function OrderSetup() {
           )}
 
           <fieldset className="grid gap-2">
-            <legend className="text-sm font-medium">Fasting or non-fasting</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(
-                [
-                  ["fasting", "Fasting package", "Misir, shiro, greens, and vegetables. No meat or dairy."],
-                  ["non_fasting", "Non-fasting package", "Doro wot, tibs, alicha, and greens."],
-                ] as const
-              ).map(([value, label, detail]) => (
+            <legend className="text-sm font-medium">Meal type</legend>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {TABLE_OPTIONS.map((option) => (
                 <button
-                  key={value}
+                  key={option.id}
                   type="button"
-                  onClick={() => update({ fastingPreference: value as FastingPreference })}
+                  onClick={() => update({ fastingPreference: option.id, lines: [] })}
                   className={cn(
                     "rounded-lg border px-3 py-3 text-left",
-                    active.fastingPreference === value ? "border-primary bg-primary/5" : "border-border",
+                    active.fastingPreference === option.id ? "border-primary bg-primary/5" : "border-border bg-background",
                   )}
                 >
-                  <span className="block text-sm font-medium">{label}</span>
-                  <span className="mt-1 block text-xs text-muted-foreground">{detail}</span>
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              This chooses the standard package. The included dishes are already selected.
-            </p>
-          </fieldset>
-
-          <fieldset className="grid gap-2">
-            <legend className="text-sm font-medium">How it reaches you</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(
-                [
-                  ["pickup", "Pickup", settings.pickupAddress],
-                  ["delivery", "Delivery", "We need a street address."],
-                ] as const
-              ).map(([value, label, detail]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => update({ fulfillment: value as Fulfillment })}
-                  className={cn(
-                    "rounded-lg border px-3 py-3 text-left",
-                    active.fulfillment === value ? "border-primary bg-primary/5" : "border-border",
-                  )}
-                >
-                  <span className="block text-sm font-medium">{label}</span>
-                  <span className="mt-1 block text-xs text-muted-foreground">{detail}</span>
+                  <span className="flex gap-1" aria-hidden>
+                    {option.icons.map((id) => (
+                      <DishPhoto key={id} id={id} size="sm" />
+                    ))}
+                  </span>
+                  <span className="mt-2 block text-sm font-medium">{option.title}</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{option.detail}</span>
+                  <span className="mt-2 block text-xs font-medium">{option.note}</span>
+                  {option.id === "mixed" ? (
+                    <span className="mt-1 block text-xs text-muted-foreground">Same standard price</span>
+                  ) : null}
                 </button>
               ))}
             </div>
           </fieldset>
 
-          {active.fulfillment === "delivery" ? (
-            <div className="grid gap-2">
-              <Label htmlFor="address">Delivery address</Label>
-              <Textarea
-                id="address"
-                value={active.address}
-                onChange={(event) => update({ address: event.target.value })}
-                placeholder="Street, city, and any door instructions"
-                className="min-h-24 bg-background"
-              />
-            </div>
-          ) : (
-            <p className="text-sm leading-6 text-muted-foreground">{settings.pickupInstructions}</p>
-          )}
+          <FulfillmentChoice />
 
           {error || problem ? (
             <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error || "The date is still short of the kitchen’s notice window."}
+              {error || problem}
             </p>
           ) : null}
 
@@ -326,8 +313,8 @@ export function OrderSetup() {
         <aside className="h-fit rounded-xl border border-border bg-card p-5">
           <p className="text-xs tracking-[0.16em] text-primary uppercase">Before you pay</p>
           <ol className="mt-4 grid gap-3 text-sm leading-6">
-            <li>1. Choose the service and the package.</li>
-            <li>2. Add optional dishes only if you want them.</li>
+            <li>1. Choose the service, then fasting, non-fasting, or mixed.</li>
+            <li>2. A mixed order lets you pick the included dishes. Add-ons are optional.</li>
             <li>3. Set spice and notes, then review.</li>
             <li>4. Pay. Nothing is confirmed until the card clears.</li>
           </ol>

@@ -250,6 +250,18 @@ export function OrderDetail({ orderId }: { orderId: string }) {
                 </li>
               ))}
             </ul>
+            {typeof order.deliveryFee === "number" ? (
+              <div className="mt-4 border-t border-border pt-4">
+                <div className="flex justify-between gap-3">
+                  <p className="font-medium">Delivery</p>
+                  <p className="text-sm tabular-nums">{money(order.deliveryFee)}</p>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{order.address}</p>
+                <p className="mt-1 text-sm tabular-nums">
+                  {order.deliveryMiles} miles × {money(order.deliveryRate ?? 0)} = {money(order.deliveryFee)}
+                </p>
+              </div>
+            ) : null}
           </section>
 
           {order.status === "payment_pending" ? (

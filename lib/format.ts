@@ -39,7 +39,7 @@ export const FULFILLMENT_LABEL: Record<Fulfillment, string> = {
 export const FASTING_LABEL: Record<FastingPreference, string> = {
   fasting: "Fasting",
   non_fasting: "Non-fasting",
-  mixed: "Mixed table",
+  mixed: "Mixed order",
 };
 
 export const CATEGORY_LABEL = {

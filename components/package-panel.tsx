@@ -2,27 +2,28 @@
 
 import { useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
+import { DishPhoto } from "@/components/dish-photo";
 import { money } from "@/lib/format";
-import { packageServingPrice, writeAddonMemory, type MealPackage } from "@/lib/packages";
+import { CATERING_PRICE_PER_PERSON, writeAddonMemory, type MealPackage } from "@/lib/packages";
 import { cn } from "cn";
 
 export function PackagePanel({
   pkg,
-  prices,
   selectedAddonIds,
   onSelectedAddonIds,
   actions,
   servingNote,
+  billing = "catering",
 }: {
   pkg: MealPackage;
-  prices: Record<string, number>;
   selectedAddonIds: string[];
   onSelectedAddonIds: (ids: string[]) => void;
   actions?: ReactNode;
   servingNote?: string;
+  billing?: "catering" | "weekly";
 }) {
   const [open, setOpen] = useState(selectedAddonIds.length > 0);
-  const packagePrice = packageServingPrice(pkg, prices);
+  const extraLabel = pkg.id === "fasting" ? "Add extra fasting items" : "Add extra non-fasting items";
 
   function toggleAddon(id: string) {
     const next = selectedAddonIds.includes(id)
@@ -40,7 +41,9 @@ export function PackagePanel({
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{pkg.detail}</p>
       <p className="mt-4 text-sm">
         {pkg.included.length} dishes included
-        {packagePrice > 0 ? <span className="text-muted-foreground"> · {money(packagePrice)} a serving</span> : null}
+        {billing === "catering" ? (
+          <span className="text-muted-foreground"> · {money(CATERING_PRICE_PER_PERSON)} per person</span>
+        ) : null}
       </p>
       <p className="mt-4 text-xs tracking-[0.14em] text-primary uppercase">Included in Standard Package</p>
       <ul className="mt-3 grid gap-2">
@@ -49,6 +52,7 @@ export function PackagePanel({
             <span className="flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
               <Check className="size-3" aria-hidden />
             </span>
+            <DishPhoto id={dish.id} />
             <span>{dish.label}</span>
             <span className="ml-auto text-xs tracking-wide text-muted-foreground uppercase">Included</span>
           </li>
@@ -63,8 +67,10 @@ export function PackagePanel({
         className="mt-6 flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-3 text-left"
       >
         <span>
-          <span className="block text-sm font-medium">Add extra meals</span>
-          <span className="mt-0.5 block text-xs text-muted-foreground">Optional. Not part of the standard package.</span>
+          <span className="block text-sm font-medium">{extraLabel}</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            Optional. These stay separate from the foods already in the package.
+          </span>
         </span>
         <span
           className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors", open ? "bg-primary" : "bg-muted")}
@@ -85,7 +91,7 @@ export function PackagePanel({
           <ul className="mt-3 grid gap-2">
             {pkg.addons.map((dish) => {
               const selected = selectedAddonIds.includes(dish.id);
-              const price = prices[dish.id];
+              const price = dish.pricePerPerson ?? 0;
               return (
                 <li key={dish.id}>
                   <button
@@ -105,9 +111,10 @@ export function PackagePanel({
                     >
                       {selected ? <Check className="size-3" aria-hidden /> : null}
                     </span>
+                    <DishPhoto id={dish.id} />
                     <span>{dish.label}</span>
                     <span className="ml-auto text-sm tabular-nums">
-                      {price != null ? `+ ${money(price)}` : "Extra"}
+                      {billing === "catering" ? `+ ${money(price)}/person` : `+ ${money(price)} each day`}
                     </span>
                   </button>
                 </li>
@@ -115,7 +122,9 @@ export function PackagePanel({
             })}
           </ul>
           <p className="mt-3 text-xs leading-5 text-muted-foreground">
-            Add-on prices are per serving, on top of the package. A weekly plan multiplies them by the number of days. Catering multiplies them by the guest count.
+            {billing === "catering"
+              ? "Each add-on is an extra charge per person, on top of the $21 standard package."
+              : "Each add-on is an extra charge for every day of the container you chose."}
           </p>
         </div>
       ) : null}

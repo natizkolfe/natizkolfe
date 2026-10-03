@@ -1,4 +1,5 @@
 import { addDays, formatDate, formatTime, isIsoDate, todayISO } from "@/lib/dates";
+import { addonUnitPrice, cateringUnitPrice, serviceQuote, weeklyLineUnit } from "@/lib/packages";
 import { FASTING_LABEL, FULFILLMENT_LABEL, KIND_LABEL, SPICE_LABEL } from "@/lib/format";
 import type {
   Customization,
@@ -100,10 +101,11 @@ export function defaultDraft(settings: PublicSettings, kind: OrderDraft["kind"] 
     fastingPreference: "fasting",
     durationDays: 7,
     startDate: settings.earliestWeeklyDate,
-    guestCount: Math.max(settings.minCateringGuests, 12),
+    guestCount: settings.minCateringGuests,
     eventDate: settings.earliestCateringDate,
     eventTime: "12:00",
     address: "",
+    delivery: null,
     lines: [],
   };
 }
@@ -325,6 +327,9 @@ export function buildLines(menu: MenuItem[], draft: OrderDraft): OrderLine[] {
   if (draft.lines.length > 80) {
     throw new OrderError("An order can hold up to 80 customized dishes.");
   }
+  if (draft.fastingPreference === "mixed" && !draft.lines.some((entry) => entry.source === "included")) {
+    throw new OrderError("Choose at least one standard dish for the mixed package. The package price stays the same.");
+  }
   return draft.lines.map((line) => {
     const item = menu.find((entry) => entry.id === line.itemId);
     if (!item || !item.available) {
@@ -346,7 +351,10 @@ export function buildLines(menu: MenuItem[], draft: OrderDraft): OrderLine[] {
       }
     }
     const customization = sanitizeCustomization(item, line.customization);
-    const unit = unitPrice(item, customization);
+    const unit =
+      draft.kind === "catering"
+        ? cateringUnitPrice(draft.fastingPreference, line, draft.lines)
+        : weeklyLineUnit(draft.fastingPreference, line, draft.lines, unitPrice(item, customization));
     return {
       lineId: line.lineId,
       itemId: item.id,
@@ -367,8 +375,10 @@ export function scheduleProblems(draft: OrderDraft, settings: PublicSettings): s
   if (draft.fulfillment !== "pickup" && draft.fulfillment !== "delivery") {
     return "Choose pickup or delivery.";
   }
-  if (draft.fulfillment === "delivery" && draft.address.trim().length < 8) {
-    return "Enter a delivery address with a street and city.";
+  if (draft.fulfillment === "delivery") {
+    if (!draft.delivery || draft.delivery.address.trim().length < 8 || typeof draft.delivery.fee !== "number") {
+      return "Calculate the driving distance and accept the delivery fee before paying.";
+    }
   }
   if (draft.kind === "weekly") {
     if (draft.durationDays !== 7 && draft.durationDays !== 14) {
@@ -383,7 +393,7 @@ export function scheduleProblems(draft: OrderDraft, settings: PublicSettings): s
   if (draft.kind === "catering") {
     if (!Number.isInteger(draft.guestCount)) return "Enter a whole number of guests.";
     if (draft.guestCount < settings.minCateringGuests) {
-      return `Catering starts at ${settings.minCateringGuests} guests.`;
+      return `Minimum guest required is ${settings.minCateringGuests}.`;
     }
     if (draft.guestCount > settings.maxGuestsPerDay) {
       return `One day can cover up to ${settings.maxGuestsPerDay} guests.`;
@@ -417,6 +427,7 @@ export function createOrder(db: Database, user: UserRecord, draft: OrderDraft): 
   const lines = validateDraft(db, draft);
   const now = new Date().toISOString();
   const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.total, 0));
+  const deliveryFee = draft.fulfillment === "delivery" ? roundMoney(draft.delivery?.fee ?? 0) : 0;
   db.seq += 1;
   const order: OrderRecord = {
     id: `ord_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
@@ -431,13 +442,16 @@ export function createOrder(db: Database, user: UserRecord, draft: OrderDraft): 
     guestCount: draft.kind === "catering" ? draft.guestCount : null,
     eventDate: draft.kind === "catering" ? draft.eventDate : null,
     eventTime: draft.kind === "catering" ? draft.eventTime : null,
-    address: draft.fulfillment === "delivery" ? draft.address.trim() : "",
+    address: draft.fulfillment === "delivery" ? (draft.delivery?.address ?? draft.address).trim() : "",
+    deliveryMiles: draft.fulfillment === "delivery" ? (draft.delivery?.miles ?? null) : null,
+    deliveryFee: draft.fulfillment === "delivery" ? deliveryFee : null,
+    deliveryRate: draft.fulfillment === "delivery" ? (draft.delivery?.ratePerMile ?? null) : null,
     customerName: user.name,
     customerPhone: user.phone,
     customerEmail: user.email,
     lines,
     subtotal,
-    total: subtotal,
+    total: roundMoney(subtotal + deliveryFee),
     createdAt: now,
     updatedAt: now,
     paidAt: null,
@@ -558,6 +572,15 @@ export function draftFromOrder(order: OrderRecord): OrderDraft {
     eventDate: order.eventDate ?? "",
     eventTime: order.eventTime ?? "",
     address: order.address,
+    delivery:
+      order.fulfillment === "delivery" && typeof order.deliveryFee === "number"
+        ? {
+            address: order.address,
+            miles: order.deliveryMiles ?? 0,
+            ratePerMile: order.deliveryRate ?? 0,
+            fee: order.deliveryFee,
+          }
+        : null,
     lines: order.lines.map((line) => ({
       lineId: line.lineId,
       itemId: line.itemId,
@@ -668,6 +691,25 @@ export function placeLabel(order: OrderRecord, settings: Settings): string {
 
 export function instructionsFor(order: OrderRecord, settings: Settings): string {
   return order.fulfillment === "pickup" ? settings.pickupInstructions : settings.deliveryNote;
+}
+
+export function customerTotal(menu: MenuItem[], draft: OrderDraft): { food: number; delivery: number; total: number } {
+  const addonIds = draft.lines.filter((line) => line.source === "addon").map((line) => line.itemId);
+  const quote = serviceQuote(draft, addonIds);
+  const food = quote
+    ? quote.total
+    : draft.lines.reduce((sum, line) => {
+        const item = menu.find((entry) => entry.id === line.itemId);
+        if (!item) return sum;
+        const unit =
+          line.source === "addon"
+            ? addonUnitPrice(draft.fastingPreference, line.itemId)
+            : weeklyLineUnit(draft.fastingPreference, line, draft.lines, unitPrice(item, line.customization));
+        return sum + unit * line.quantity;
+      }, 0);
+  const delivery = draft.fulfillment === "delivery" ? roundMoney(draft.delivery?.fee ?? 0) : 0;
+  const foodRounded = roundMoney(food);
+  return { food: foodRounded, delivery, total: roundMoney(foodRounded + delivery) };
 }
 
 export function lineCountLabel(lines: DraftLine[] | OrderLine[]): string {

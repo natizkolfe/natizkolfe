@@ -42,6 +42,34 @@ export async function PATCH(request: Request) {
       if (typeof body.deliveryNote === "string") {
         next.deliveryNote = body.deliveryNote.trim().slice(0, 300);
       }
+      if (typeof body.deliveryOrigin === "string" && body.deliveryOrigin.trim().length > 8) {
+        next.deliveryOrigin = body.deliveryOrigin.trim().slice(0, 180);
+      }
+      if ("deliveryRatePerMile" in body) {
+        const rate = body.deliveryRatePerMile;
+        if (typeof rate !== "number" || !Number.isFinite(rate) || rate < 0 || rate > 50) {
+          throw new OrderError("The delivery rate must be from $0 to $50 per mile.");
+        }
+        next.deliveryRatePerMile = Math.round(rate * 100) / 100;
+      }
+      if ("maxDeliveryMiles" in body) next.maxDeliveryMiles = number("maxDeliveryMiles", 0, 500);
+      if ("minDeliveryFee" in body) {
+        const minimum = body.minDeliveryFee;
+        if (typeof minimum !== "number" || !Number.isFinite(minimum) || minimum < 0 || minimum > 500) {
+          throw new OrderError("The minimum delivery fee must be from $0 to $500.");
+        }
+        next.minDeliveryFee = Math.round(minimum * 100) / 100;
+      }
+      if ("deliveryEnabled" in body) next.deliveryEnabled = Boolean(body.deliveryEnabled);
+      if ("freeDelivery" in body) next.freeDelivery = Boolean(body.freeDelivery);
+      if ("deliveryZipCodes" in body) {
+        const raw = Array.isArray(body.deliveryZipCodes)
+          ? body.deliveryZipCodes.join(",")
+          : typeof body.deliveryZipCodes === "string"
+            ? body.deliveryZipCodes
+            : "";
+        next.deliveryZipCodes = [...new Set(raw.match(/\d{5}/g) ?? [])].slice(0, 100);
+      }
       return publicSettings(next);
     });
     return Response.json({ settings });

@@ -75,6 +75,13 @@ export interface DraftLine {
   source?: "included" | "addon";
 }
 
+export interface DeliveryQuote {
+  address: string;
+  miles: number;
+  ratePerMile: number;
+  fee: number;
+}
+
 export interface OrderDraft {
   kind: OrderKind;
   fulfillment: Fulfillment;
@@ -85,6 +92,8 @@ export interface OrderDraft {
   eventDate: string;
   eventTime: string;
   address: string;
+  /** Set only after the customer accepts a calculated delivery fee. */
+  delivery: DeliveryQuote | null;
   lines: DraftLine[];
 }
 
@@ -128,6 +137,9 @@ export interface OrderRecord {
   eventDate: string | null;
   eventTime: string | null;
   address: string;
+  deliveryMiles: number | null;
+  deliveryFee: number | null;
+  deliveryRate: number | null;
   customerName: string;
   customerPhone: string;
   customerEmail: string;
@@ -192,6 +204,18 @@ export interface Settings {
   pickupAddress: string;
   pickupInstructions: string;
   deliveryNote: string;
+  /** Kitchen location used to measure driving distance. */
+  deliveryOrigin: string;
+  /** Dollars charged for each driving mile. */
+  deliveryRatePerMile: number;
+  /** 0 means no maximum. */
+  maxDeliveryMiles: number;
+  /** 0 means no minimum. */
+  minDeliveryFee: number;
+  deliveryEnabled: boolean;
+  /** Empty means every ZIP code is allowed. */
+  deliveryZipCodes: string[];
+  freeDelivery: boolean;
   timezone: string;
 }
 

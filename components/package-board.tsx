@@ -2,18 +2,21 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { MixedPackagePanel } from "@/components/mixed-package-panel";
 import { PackagePanel } from "@/components/package-panel";
 import { Button } from "@/components/ui/button";
-import { MEAL_PACKAGES, readAddonMemory } from "@/lib/packages";
+import { MEAL_PACKAGES, readAddonMemory, readIncludedMemory } from "@/lib/packages";
 
-const EMPTY = { fasting: [] as string[], non_fasting: [] as string[] };
+const EMPTY = { fasting: [] as string[], non_fasting: [] as string[], mixed: [] as string[] };
 
-export function PackageBoard({ prices }: { prices: Record<string, number> }) {
+export function PackageBoard() {
   const [selected, setSelected] = useState(EMPTY);
+  const [included, setIncluded] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     setSelected(readAddonMemory());
+    setIncluded(readIncludedMemory());
     setReady(true);
   }, []);
 
@@ -23,7 +26,7 @@ export function PackageBoard({ prices }: { prices: Record<string, number> }) {
         <PackagePanel
           key={`${id}-${ready}`}
           pkg={MEAL_PACKAGES[id]}
-          prices={prices}
+          billing="catering"
           selectedAddonIds={ready ? selected[id] : []}
           onSelectedAddonIds={(ids) => setSelected((current) => ({ ...current, [id]: ids }))}
           servingNote="One serving of each included dish. You do not add these yourself."
@@ -39,6 +42,27 @@ export function PackageBoard({ prices }: { prices: Record<string, number> }) {
           }
         />
       ))}
+      <div className="lg:col-span-2">
+        <MixedPackagePanel
+          key={`mixed-${ready}`}
+          billing="catering"
+          selectedIncludedIds={ready ? included : []}
+          onSelectedIncludedIds={setIncluded}
+          selectedAddonIds={ready ? selected.mixed : []}
+          onSelectedAddonIds={(ids) => setSelected((current) => ({ ...current, mixed: ids }))}
+          servingNote="Choose up to four standard dishes from either table. The $21 price does not change. Further dishes are add-ons."
+          actions={
+            <>
+              <Button className="h-10 px-3" render={<Link href="/order?kind=weekly&table=mixed" />}>
+                Weekly meals
+              </Button>
+              <Button variant="outline" className="h-10 bg-background px-3" render={<Link href="/order?kind=catering&table=mixed" />}>
+                Catering
+              </Button>
+            </>
+          }
+        />
+      </div>
     </div>
   );
 }

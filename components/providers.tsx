@@ -7,6 +7,14 @@ import type { OrderDraft, PublicUser } from "@/lib/types";
 
 const DRAFT_KEY = "gebeta-draft-v1";
 
+function normalizeDraft(draft: OrderDraft): OrderDraft {
+  const delivery = draft.delivery && typeof draft.delivery.fee === "number" ? draft.delivery : null;
+  if (draft.fulfillment === "delivery" && !delivery) {
+    return { ...draft, fulfillment: "pickup", delivery: null };
+  }
+  return { ...draft, delivery };
+}
+
 type AuthValue = {
   user: PublicUser | null;
   staff: boolean;
@@ -57,7 +65,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       if (ignore) return;
       try {
         const raw = localStorage.getItem(DRAFT_KEY);
-        if (raw) setDraftState(JSON.parse(raw) as OrderDraft);
+        if (raw) setDraftState(normalizeDraft(JSON.parse(raw) as OrderDraft));
       } catch {
         localStorage.removeItem(DRAFT_KEY);
       }

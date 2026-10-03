@@ -8,13 +8,20 @@ const FILE = path.join(process.cwd(), "data", "db.json");
 export const defaultSettings = (): Settings => ({
   weeklyLeadDays: 7,
   cateringLeadDays: 7,
-  minCateringGuests: 8,
+  minCateringGuests: 10,
   maxGuestsPerDay: 80,
   maxWeeklyServingsPerDay: 100,
   pickupAddress: "Gebeta Kitchen, 412 East 9th Street",
   pickupInstructions:
     "Use the side door marked Gebeta. Have your verification code ready for the kitchen.",
   deliveryNote: "A driver will text when they are close. Keep the verification code handy.",
+  deliveryOrigin: "4473 Rowland N Dr, Stone Mountain, GA 30083",
+  deliveryRatePerMile: 2,
+  maxDeliveryMiles: 0,
+  minDeliveryFee: 0,
+  deliveryEnabled: true,
+  deliveryZipCodes: [],
+  freeDelivery: false,
   timezone: "America/New_York",
 });
 

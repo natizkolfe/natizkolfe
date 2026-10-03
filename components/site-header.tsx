@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu } from "lucide-react";
-import { MesobMark } from "@/components/mark";
 import { useAuth } from "@/components/providers";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -24,10 +23,9 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/80 bg-background/90 backdrop-blur-md">
-      <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2.5">
-          <MesobMark className="size-8" />
-          <span className="font-display text-2xl leading-none tracking-tight">Gebeta</span>
+      <div className="mx-auto flex h-20 w-full max-w-6xl items-center gap-4 px-4 sm:px-6">
+        <Link href="/" className="flex shrink-0 items-center">
+          <img src="/gebeta-logo.png" alt="Gebeta" className="h-16 w-auto rounded-xl" />
         </Link>
         <nav className="ml-4 hidden items-center gap-1 md:flex">
           {LINKS.map((link) => {
@@ -75,7 +73,9 @@ export function SiteHeader() {
           </SheetTrigger>
           <SheetContent side="left" className="w-[min(100%,20rem)]">
             <SheetHeader>
-              <SheetTitle className="font-display text-2xl">Gebeta</SheetTitle>
+              <SheetTitle>
+                <img src="/gebeta-logo.png" alt="Gebeta" className="h-16 w-auto rounded-xl" />
+              </SheetTitle>
             </SheetHeader>
             <nav className="grid gap-1 px-4">
               {LINKS.map((link) => (

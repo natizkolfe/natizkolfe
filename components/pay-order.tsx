@@ -9,7 +9,7 @@ import { useAuth, useDraft } from "@/components/providers";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client-api";
 import { money } from "@/lib/format";
-import { unitPrice } from "@/lib/orders";
+import { customerTotal } from "@/lib/orders";
 import type { MenuItem, OrderRecord } from "@/lib/types";
 
 export function PayOrder() {
@@ -55,11 +55,7 @@ export function PayOrder() {
     );
   }
 
-  const subtotal =
-    menu?.reduce((sum, item) => {
-      const lines = draft.lines.filter((line) => line.itemId === item.id);
-      return sum + lines.reduce((lineSum, line) => lineSum + unitPrice(item, line.customization) * line.quantity, 0);
-    }, 0) ?? 0;
+  const charge = menu ? customerTotal(menu, draft) : null;
 
   async function prepare() {
     if (!draft) throw new Error("The draft is missing.");
@@ -81,7 +77,12 @@ export function PayOrder() {
       {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
         <section className="rounded-xl border border-border bg-card p-5">
-          <p className="mb-4 font-display text-4xl">{money(subtotal)}</p>
+          <p className="mb-4 font-display text-4xl">{charge ? money(charge.total) : "…"}</p>
+          {charge?.delivery ? (
+            <p className="mb-4 text-sm text-muted-foreground">
+              Includes a {money(charge.delivery)} delivery add-on. The package price does not include it.
+            </p>
+          ) : null}
           <PaymentForm
             payerName={user.name}
             prepare={prepare}

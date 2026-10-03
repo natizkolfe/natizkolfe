@@ -356,6 +356,11 @@ export function KitchenTicket({ orderId }: { orderId: string }) {
             <Badge className={cn("border", statusTone(order.status))}>{STATUS_LABEL[order.status]}</Badge>
             <p className="mt-3 text-sm">{scheduleLabel(order)}</p>
             <p className="text-sm text-muted-foreground">{money(order.total)} {order.paidAt ? "paid" : "unpaid"}</p>
+            {typeof order.deliveryFee === "number" ? (
+              <p className="mt-2 text-sm">
+                Delivery {money(order.deliveryFee)} · {order.deliveryMiles} miles · {order.address}
+              </p>
+            ) : null}
             {order.verificationCode && order.paidAt ? (
               <p className="mt-3 text-sm">
                 Code on file: <span className="font-medium tracking-widest">{order.verificationCode}</span>
@@ -497,11 +502,13 @@ export function KitchenSettings() {
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [zipText, setZipText] = useState("");
 
   useEffect(() => {
     Promise.all([api<{ settings: PublicSettings }>("/api/admin/settings"), api<{ orders: OrderRecord[] }>("/api/admin/orders")])
       .then(([settingsData, ordersData]) => {
         setSettings(settingsData.settings);
+        setZipText((settingsData.settings.deliveryZipCodes ?? []).join(", "));
         setOrders(ordersData.orders);
       })
       .catch((reason: Error) => setError(reason.message));
@@ -536,9 +543,17 @@ export function KitchenSettings() {
           pickupAddress: settings?.pickupAddress,
           pickupInstructions: settings?.pickupInstructions,
           deliveryNote: settings?.deliveryNote,
+          deliveryOrigin: settings?.deliveryOrigin,
+          deliveryRatePerMile: Number(settings?.deliveryRatePerMile),
+          maxDeliveryMiles: Number(settings?.maxDeliveryMiles),
+          minDeliveryFee: Number(settings?.minDeliveryFee),
+          deliveryEnabled: settings?.deliveryEnabled,
+          freeDelivery: settings?.freeDelivery,
+          deliveryZipCodes: zipText,
         }),
       });
       setSettings(data.settings);
+      setZipText((data.settings.deliveryZipCodes ?? []).join(", "));
       setMessage("Kitchen settings saved.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not save.");
@@ -567,6 +582,62 @@ export function KitchenSettings() {
         <div className="grid gap-2">
           <Label htmlFor="delivery">Delivery note</Label>
           <Textarea id="delivery" value={settings.deliveryNote} onChange={(event) => setSettings({ ...settings, deliveryNote: event.target.value })} />
+        </div>
+        <div className="grid gap-3 border-t border-border pt-4">
+          <h2 className="font-display text-2xl">Delivery pricing</h2>
+          <div className="grid gap-2">
+            <Label htmlFor="origin">Starting location</Label>
+            <Input
+              id="origin"
+              className="h-11 bg-background px-3"
+              value={settings.deliveryOrigin}
+              onChange={(event) => setSettings({ ...settings, deliveryOrigin: event.target.value })}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <NumberField
+              label="Price per mile"
+              value={settings.deliveryRatePerMile}
+              step="0.01"
+              onChange={(value) => setSettings({ ...settings, deliveryRatePerMile: value })}
+            />
+            <NumberField
+              label="Maximum miles, 0 for none"
+              value={settings.maxDeliveryMiles}
+              onChange={(value) => setSettings({ ...settings, maxDeliveryMiles: value })}
+            />
+            <NumberField
+              label="Minimum delivery fee"
+              value={settings.minDeliveryFee}
+              step="0.01"
+              onChange={(value) => setSettings({ ...settings, minDeliveryFee: value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="zips">Delivery ZIP codes, leave blank for all</Label>
+            <Input
+              id="zips"
+              className="h-11 bg-background px-3"
+              value={zipText}
+              onChange={(event) => setZipText(event.target.value)}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={settings.deliveryEnabled}
+              onChange={(event) => setSettings({ ...settings, deliveryEnabled: event.target.checked })}
+            />
+            Delivery is available
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={settings.freeDelivery}
+              onChange={(event) => setSettings({ ...settings, freeDelivery: event.target.checked })}
+            />
+            Free delivery promotion
+          </label>
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {message ? <p className="text-sm text-gomen">{message}</p> : null}
@@ -597,11 +668,21 @@ export function KitchenSettings() {
   );
 }
 
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+function NumberField({
+  label,
+  value,
+  onChange,
+  step = "1",
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  step?: string;
+}) {
   return (
     <div className="grid gap-2">
       <Label>{label}</Label>
-      <Input className="h-11 bg-background px-3" type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <Input className="h-11 bg-background px-3" type="number" step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
     </div>
   );
 }
