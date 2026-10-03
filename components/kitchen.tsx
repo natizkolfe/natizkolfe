@@ -2,24 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { PageIntro, Shell } from "@/components/page-intro";
 import { useAuth } from "@/components/providers";
-import { StatusTimeline } from "@/components/status-timeline";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/client-api";
 import { formatWhen } from "@/lib/dates";
-import { money, STATUS_LABEL, statusTone } from "@/lib/format";
-import { allowedTransitions, orderHeadline, scheduleLabel } from "@/lib/orders";
-import type { MenuItem, OrderRecord, OrderStatus, PublicSettings, PublicUser } from "@/lib/types";
+import { money } from "@/lib/format";
+import type { MenuItem, OrderRecord, PublicSettings, PublicUser } from "@/lib/types";
 import { cn } from "cn";
 
+export { StaffBoard as KitchenBoard } from "@/components/staff-board";
+export { StaffTicket as KitchenTicket } from "@/components/staff-ticket";
+
 const NAV = [
-  { href: "/admin", label: "Board" },
+  { href: "/admin", label: "Orders" },
   { href: "/admin/menu", label: "Menu" },
   { href: "/admin/settings", label: "Capacity" },
   { href: "/admin/customers", label: "Customers" },
@@ -117,280 +117,6 @@ export function KitchenFrame({ children }: { children: React.ReactNode }) {
         <div>{children}</div>
       </div>
     </Shell>
-  );
-}
-
-export function KitchenBoard() {
-  const [orders, setOrders] = useState<OrderRecord[] | null>(null);
-  const [error, setError] = useState("");
-  const [filter, setFilter] = useState<"active" | OrderStatus | "all">("active");
-
-  useEffect(() => {
-    api<{ orders: OrderRecord[] }>("/api/admin/orders")
-      .then((data) => setOrders(data.orders))
-      .catch((reason: Error) => setError(reason.message));
-  }, []);
-
-  const visible = useMemo(() => {
-    if (!orders) return [];
-    if (filter === "all") return orders;
-    if (filter === "active") {
-      return orders.filter((order) => !["completed", "cancelled"].includes(order.status));
-    }
-    return orders.filter((order) => order.status === filter);
-  }, [orders, filter]);
-
-  const counts = {
-    payment_pending: orders?.filter((order) => order.status === "payment_pending").length ?? 0,
-    confirmed: orders?.filter((order) => order.status === "confirmed").length ?? 0,
-    preparing: orders?.filter((order) => order.status === "preparing").length ?? 0,
-    ready: orders?.filter((order) => order.status === "ready").length ?? 0,
-  };
-
-  return (
-    <div>
-      <PageIntro
-        title="Prep board"
-        lede="Unpaid orders stay out of the cooking queue. Move a paid order only one step at a time, and take the verification code at the door."
-      />
-      {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {(
-          [
-            ["payment_pending", "Unpaid"],
-            ["confirmed", "Confirmed"],
-            ["preparing", "Preparing"],
-            ["ready", "Ready"],
-          ] as const
-        ).map(([status, label]) => (
-          <button
-            key={status}
-            type="button"
-            onClick={() => setFilter(status)}
-            className="rounded-xl border border-border bg-card p-4 text-left"
-          >
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <p className="font-display text-3xl">{counts[status]}</p>
-          </button>
-        ))}
-      </div>
-      <div className="mt-4 flex gap-2">
-        <FilterChip current={filter} id="active" label="Open" onClick={setFilter} />
-        <FilterChip current={filter} id="all" label="Everything" onClick={setFilter} />
-      </div>
-      {!orders ? (
-        <p className="mt-6 text-muted-foreground">Loading the book…</p>
-      ) : visible.length === 0 ? (
-        <p className="mt-6 rounded-xl border border-dashed border-border bg-card px-4 py-8 text-sm text-muted-foreground">
-          The kitchen is clear.
-        </p>
-      ) : (
-        <ul className="mt-4 grid gap-2">
-          {visible.map((order) => (
-            <li key={order.id}>
-              <Link href={`/admin/orders/${order.id}`} className="grid gap-2 rounded-xl border border-border bg-card p-4 sm:grid-cols-[8rem_1fr_auto] sm:items-center">
-                <span className="font-medium">{order.number}</span>
-                <span>
-                  <span className="block">{order.customerName}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {orderHeadline(order)} · {scheduleLabel(order)}
-                  </span>
-                </span>
-                <span className="flex items-center gap-3">
-                  <Badge className={cn("border", statusTone(order.status))}>{STATUS_LABEL[order.status]}</Badge>
-                  <span className="text-sm tabular-nums">{money(order.total)}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function FilterChip({
-  current,
-  id,
-  label,
-  onClick,
-}: {
-  current: string;
-  id: "active" | "all";
-  label: string;
-  onClick: (id: "active" | "all") => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onClick(id)}
-      className={cn(
-        "rounded-full border px-3 py-1.5 text-sm",
-        current === id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card",
-      )}
-    >
-      {label}
-    </button>
-  );
-}
-
-const NEXT_LABEL: Partial<Record<OrderStatus, string>> = {
-  preparing: "Start preparing",
-  ready: "Mark ready and send the text",
-  completed: "Close the order",
-  cancelled: "Cancel",
-};
-
-export function KitchenTicket({ orderId }: { orderId: string }) {
-  const [order, setOrder] = useState<OrderRecord | null>(null);
-  const [note, setNote] = useState("");
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
-
-  useEffect(() => {
-    let ignore = false;
-    api<{ order: OrderRecord }>(`/api/admin/orders/${orderId}`)
-      .then((data) => {
-        if (ignore) return;
-        setOrder(data.order);
-        setNote(data.order.kitchenNote);
-      })
-      .catch((reason: Error) => {
-        if (!ignore) setError(reason.message);
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [orderId]);
-
-  if (error && !order) {
-    return <p className="text-sm text-destructive">{error}</p>;
-  }
-  if (!order) return <p className="text-muted-foreground">Opening the ticket…</p>;
-
-  const next = allowedTransitions(order).filter((status) => status !== "picked_up" && status !== "delivered");
-
-  async function act(status?: OrderStatus) {
-    setPending(true);
-    setError("");
-    try {
-      const data = await api<{ order: OrderRecord }>(`/api/admin/orders/${orderId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ kitchenNote: note, status }),
-      });
-      setOrder(data.order);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Could not update.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  async function verify(event: React.FormEvent) {
-    event.preventDefault();
-    setPending(true);
-    setError("");
-    try {
-      const data = await api<{ order: OrderRecord }>(`/api/admin/orders/${orderId}/verify`, {
-        method: "POST",
-        body: JSON.stringify({ code }),
-      });
-      setOrder(data.order);
-      setCode("");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Code did not match.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <div className="grid gap-6">
-      <div>
-        <Link href="/admin" className="text-sm text-primary">
-          Back to the board
-        </Link>
-        <h1 className="mt-2 font-display text-4xl">{order.number}</h1>
-        <p className="mt-1 text-muted-foreground">
-          {order.customerName} · {order.customerPhone} · {orderHeadline(order)}
-        </p>
-      </div>
-      {order.status === "payment_pending" ? (
-        <p className="rounded-lg border border-amber-700/30 bg-amber-100 px-3 py-2 text-sm text-amber-950">
-          Payment has not cleared. Do not confirm or prepare this order.
-        </p>
-      ) : null}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <div className="grid gap-3">
-          {order.lines.map((line) => (
-            <article key={line.lineId} className="rounded-xl border border-border bg-card p-4">
-              <p className="font-medium">
-                {line.quantity} × {line.name}
-              </p>
-              {order.kind === "weekly" && line.dayIndex != null ? (
-                <p className="text-sm capitalize text-muted-foreground">
-                  Day {line.dayIndex + 1} · {line.mealSlot}
-                </p>
-              ) : null}
-              <ul className="mt-2 grid gap-1 text-sm">
-                {line.summary.map((entry) => (
-                  <li key={entry} className={entry.startsWith("Allergies") ? "font-medium text-primary" : ""}>
-                    {entry}
-                  </li>
-                ))}
-                {line.summary.length === 0 ? <li className="text-muted-foreground">Standard preparation.</li> : null}
-              </ul>
-            </article>
-          ))}
-          <div className="grid gap-2">
-            <Label htmlFor="kitchen-note">Kitchen note</Label>
-            <Textarea id="kitchen-note" value={note} onChange={(event) => setNote(event.target.value)} />
-            <Button type="button" variant="outline" className="h-10 w-fit bg-card" disabled={pending} onClick={() => act()}>
-              Save note
-            </Button>
-          </div>
-        </div>
-        <aside className="grid h-fit gap-4">
-          <section className="rounded-xl border border-border bg-card p-4">
-            <Badge className={cn("border", statusTone(order.status))}>{STATUS_LABEL[order.status]}</Badge>
-            <p className="mt-3 text-sm">{scheduleLabel(order)}</p>
-            <p className="text-sm text-muted-foreground">{money(order.total)} {order.paidAt ? "paid" : "unpaid"}</p>
-            {typeof order.deliveryFee === "number" ? (
-              <p className="mt-2 text-sm">
-                Delivery {money(order.deliveryFee)} · {order.deliveryMiles} miles · {order.address}
-              </p>
-            ) : null}
-            {order.verificationCode && order.paidAt ? (
-              <p className="mt-3 text-sm">
-                Code on file: <span className="font-medium tracking-widest">{order.verificationCode}</span>
-              </p>
-            ) : null}
-            {order.smsBody ? <p className="mt-3 text-sm leading-6 text-muted-foreground">{order.smsBody}</p> : null}
-            <div className="mt-4 grid gap-2">
-              {next.map((status) => (
-                <Button key={status} type="button" className="h-10" disabled={pending} onClick={() => act(status)}>
-                  {NEXT_LABEL[status] ?? STATUS_LABEL[status]}
-                </Button>
-              ))}
-            </div>
-            {order.status === "ready" ? (
-              <form className="mt-4 grid gap-2 border-t border-border pt-4" onSubmit={verify}>
-                <Label htmlFor="code">Verification code</Label>
-                <Input id="code" className="h-11 bg-background px-3 tracking-widest" value={code} onChange={(event) => setCode(event.target.value)} />
-                <Button type="submit" className="h-10" disabled={pending}>
-                  {order.fulfillment === "pickup" ? "Verify pickup" : "Verify delivery"}
-                </Button>
-              </form>
-            ) : null}
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          </section>
-          <section className="rounded-xl border border-border bg-card p-4">
-            <StatusTimeline history={order.statusHistory} fulfillment={order.fulfillment} status={order.status} />
-          </section>
-        </aside>
-      </div>
-    </div>
   );
 }
 
@@ -543,6 +269,7 @@ export function KitchenSettings() {
           pickupAddress: settings?.pickupAddress,
           pickupInstructions: settings?.pickupInstructions,
           deliveryNote: settings?.deliveryNote,
+          staffPhone: settings?.staffPhone,
           deliveryOrigin: settings?.deliveryOrigin,
           deliveryRatePerMile: Number(settings?.deliveryRatePerMile),
           maxDeliveryMiles: Number(settings?.maxDeliveryMiles),
@@ -582,6 +309,18 @@ export function KitchenSettings() {
         <div className="grid gap-2">
           <Label htmlFor="delivery">Delivery note</Label>
           <Textarea id="delivery" value={settings.deliveryNote} onChange={(event) => setSettings({ ...settings, deliveryNote: event.target.value })} />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="staff-phone">Staff alert phone</Label>
+          <Input
+            id="staff-phone"
+            className="h-11 bg-background px-3"
+            value={settings.staffPhone}
+            onChange={(event) => setSettings({ ...settings, staffPhone: event.target.value })}
+          />
+          <p className="text-xs text-muted-foreground">
+            New paid orders also alert the browser that has the staff portal open, including a phone.
+          </p>
         </div>
         <div className="grid gap-3 border-t border-border pt-4">
           <h2 className="font-display text-2xl">Delivery pricing</h2>
@@ -703,7 +442,7 @@ export function KitchenCustomers() {
 
   return (
     <div>
-      <PageIntro title="Customers" lede="Phone numbers are here because that is where the ready text is sent." />
+        <PageIntro title="Customers" lede="Phone numbers are here because pickup and delivery notices go to the customer." />
       {customers.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">No accounts yet.</p>
       ) : (

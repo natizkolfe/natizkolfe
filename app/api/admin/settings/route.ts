@@ -42,6 +42,9 @@ export async function PATCH(request: Request) {
       if (typeof body.deliveryNote === "string") {
         next.deliveryNote = body.deliveryNote.trim().slice(0, 300);
       }
+      if (typeof body.staffPhone === "string") {
+        next.staffPhone = body.staffPhone.trim().slice(0, 40);
+      }
       if (typeof body.deliveryOrigin === "string" && body.deliveryOrigin.trim().length > 8) {
         next.deliveryOrigin = body.deliveryOrigin.trim().slice(0, 180);
       }

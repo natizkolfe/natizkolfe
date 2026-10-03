@@ -32,6 +32,45 @@ export function isIsoDate(value: string): boolean {
   );
 }
 
+export function formatDateLong(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
+/** Interpret a calendar date and clock time in a named timezone. */
+export function zonedDateTime(isoDate: string, time: string, timeZone: string): Date {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  const hour = match ? Number(match[1]) : 12;
+  const minute = match ? Number(match[2]) : 0;
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+  const offset = timeZoneOffsetMinutes(utcGuess, timeZone);
+  return new Date(utcGuess.getTime() - offset * 60_000);
+}
+
+function timeZoneOffsetMinutes(date: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(date);
+  const pick = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value ?? "0");
+  const hour = pick("hour") % 24;
+  const asUtc = Date.UTC(pick("year"), pick("month") - 1, pick("day"), hour, pick("minute"), pick("second"));
+  return Math.round((asUtc - date.getTime()) / 60000);
+}
+
 export function formatDate(iso: string): string {
   const [year, month, day] = iso.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));

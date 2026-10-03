@@ -10,8 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client-api";
 import { addDays, formatDate, formatTime, formatWhen } from "@/lib/dates";
-import { FULFILLMENT_LABEL, KIND_LABEL, money, STATUS_LABEL, statusTone } from "@/lib/format";
-import { instructionsFor, orderHeadline, placeLabel, scheduleLabel } from "@/lib/orders";
+import { displayStatus, FULFILLMENT_LABEL, KIND_LABEL, money, statusTone } from "@/lib/format";
+import { formatDeadline, instructionsFor, modificationWindow, orderHeadline, placeLabel, scheduleLabel } from "@/lib/orders";
 import type { OrderRecord, PublicSettings } from "@/lib/types";
 import { cn } from "cn";
 
@@ -79,7 +79,7 @@ export function OrdersList() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <Badge className={cn("border", statusTone(order.status))}>{STATUS_LABEL[order.status]}</Badge>
+                    <Badge className={cn("border", statusTone(order.status))}>{displayStatus(order.status, order.fulfillment)}</Badge>
                     <p className="mt-2 text-sm tabular-nums">{money(order.total)}</p>
                   </div>
                 </div>
@@ -104,6 +104,9 @@ export function OrderDetail({ orderId }: { orderId: string }) {
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [feedbackPending, setFeedbackPending] = useState(false);
 
   useEffect(() => {
     if (!ready || !user) return;
@@ -130,7 +133,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
       api<{ order: OrderRecord }>(`/api/orders/${orderId}`)
         .then((data) => {
           setOrder((current) => {
-            if (!current || !["confirmed", "preparing", "ready"].includes(current.status)) return current;
+            if (!current || !["confirmed", "preparing", "quality_check", "ready", "out_for_delivery"].includes(current.status)) return current;
             return data.order;
           });
         })
@@ -203,28 +206,78 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           title={order.status === "payment_pending" ? "Payment is still open." : "Your order is in the book."}
           lede={orderHeadline(order)}
         />
-        <Badge className={cn("border", statusTone(order.status))}>{STATUS_LABEL[order.status]}</Badge>
+        <Badge className={cn("border", statusTone(order.status))}>{displayStatus(order.status, order.fulfillment)}</Badge>
       </div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="grid gap-4">
-          {order.smsBody ? (
-            <section className="rounded-xl border border-gomen/30 bg-card p-5">
-              <p className="text-xs tracking-[0.16em] text-gomen uppercase">Text message</p>
+          {order.paidAt && order.verificationCode ? (
+            <section className="rounded-xl border border-border bg-card p-5">
+              <p className="text-xs tracking-[0.16em] text-primary uppercase">Order ID / verification code</p>
+              <p className="mt-2 font-display text-5xl">{order.verificationCode}</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Sent to {order.customerPhone} · {order.smsSentAt ? formatWhen(order.smsSentAt) : ""}
+                Give this code to staff when you pick up the order. It is also on your confirmation.
               </p>
-              <div className="mt-4 max-w-md rounded-2xl rounded-bl-sm bg-secondary px-4 py-3 text-sm leading-6">
-                {order.smsBody}
-              </div>
-              <p className="mt-4 font-display text-5xl tracking-[0.2em]">{order.verificationCode}</p>
-              <p className="text-sm text-muted-foreground">Show this code when you collect the food.</p>
-            </section>
-          ) : order.paidAt ? (
-            <section className="rounded-xl border border-border bg-card p-5 text-sm leading-6">
-              A text with your verification code goes to {order.customerPhone} when the order is ready. It is not shown before then.
             </section>
           ) : null}
+          {order.notices.map((notice) => (
+            <section key={notice.id} className="rounded-xl border border-border bg-card p-5">
+              <p className="text-xs tracking-[0.16em] text-primary uppercase">{notice.title}</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {notice.kind === "customer_confirmation" ? order.customerEmail : order.customerPhone} · {formatWhen(notice.at)}
+              </p>
+              <div className="mt-4 whitespace-pre-line text-sm leading-6">{notice.body}</div>
+              {notice.kind === "thank_you" && !order.feedback ? (
+                <form
+                  className="mt-4 grid gap-3"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    setFeedbackPending(true);
+                    setError("");
+                    try {
+                      const data = await api<{ order: OrderRecord }>(`/api/orders/${order.id}/feedback`, {
+                        method: "POST",
+                        body: JSON.stringify({ rating, comment }),
+                      });
+                      setOrder(data.order);
+                    } catch (reason) {
+                      setError(reason instanceof Error ? reason.message : "Could not save feedback.");
+                    } finally {
+                      setFeedbackPending(false);
+                    }
+                  }}
+                >
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        className={cn("text-2xl", star <= rating ? "text-primary" : "text-muted-foreground")}
+                        onClick={() => setRating(star)}
+                        aria-label={`${star} star${star === 1 ? "" : "s"}`}
+                      >
+                        {star <= rating ? "★" : "☆"}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="grid gap-1 text-sm">
+                    Comment, optional
+                    <textarea
+                      className="min-h-24 rounded-md border border-border bg-background px-3 py-2"
+                      value={comment}
+                      onChange={(event) => setComment(event.target.value)}
+                    />
+                  </label>
+                  <Button type="submit" className="h-11 w-fit px-4" disabled={feedbackPending || rating < 1}>
+                    {feedbackPending ? "Sending…" : "Leave feedback"}
+                  </Button>
+                </form>
+              ) : null}
+              {notice.kind === "thank_you" && order.feedback ? (
+                <p className="mt-3 text-sm">You rated this order {order.feedback.rating} of 5.</p>
+              ) : null}
+            </section>
+          ))}
 
           <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="font-display text-2xl">What was ordered</h2>
@@ -303,6 +356,7 @@ export function OrderDetail({ orderId }: { orderId: string }) {
               {order.paymentLast4 ? <Row label="Card" value={`Ending ${order.paymentLast4}`} /> : null}
               {order.paidAt ? <Row label="Paid" value={formatWhen(order.paidAt)} /> : null}
             </dl>
+            {order.paidAt ? <ModifyBlock order={order} settings={settings} /> : null}
             {(order.status === "payment_pending" || order.status === "confirmed") && (
               <Button variant="outline" className="mt-4 h-10 w-full bg-background" disabled={cancelling} onClick={cancel}>
                 {cancelling ? "Cancelling…" : "Cancel order"}
@@ -315,6 +369,29 @@ export function OrderDetail({ orderId }: { orderId: string }) {
         </aside>
       </div>
     </Shell>
+  );
+}
+
+function ModifyBlock({ order, settings }: { order: OrderRecord; settings: PublicSettings }) {
+  const window = modificationWindow(order, settings);
+  if (!window.open && window.reason === "time") {
+    return (
+      <div className="mt-4 rounded-lg border border-border bg-background px-3 py-3">
+        <p className="font-medium">Order Modification Period Closed</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          This order is scheduled within the next 24 hours. Online modifications are no longer available.
+        </p>
+      </div>
+    );
+  }
+  if (!window.open) return null;
+  return (
+    <div className="mt-4">
+      <p className="text-sm text-muted-foreground">Changes are open until {formatDeadline(window.deadline)}.</p>
+      <Button className="mt-2 h-10 w-full" render={<Link href={`/orders/${order.id}/modify`} />}>
+        Modify order
+      </Button>
+    </div>
   );
 }
 

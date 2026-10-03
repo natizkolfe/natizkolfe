@@ -19,7 +19,9 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   payment_pending: "Payment pending",
   confirmed: "Confirmed",
   preparing: "Preparing",
+  quality_check: "Quality check",
   ready: "Ready",
+  out_for_delivery: "Out for delivery",
   picked_up: "Picked up",
   delivered: "Delivered",
   completed: "Completed",
@@ -81,6 +83,11 @@ export const DISLIKED_INGREDIENTS = [
   "Green chili",
 ] as const;
 
+export function displayStatus(status: OrderStatus, fulfillment: Fulfillment): string {
+  if (status === "ready") return fulfillment === "delivery" ? "Ready for delivery" : "Ready for pickup";
+  return STATUS_LABEL[status];
+}
+
 export function statusTone(status: OrderStatus): string {
   switch (status) {
     case "payment_pending":
@@ -88,8 +95,10 @@ export function statusTone(status: OrderStatus): string {
     case "confirmed":
       return "border-primary/20 bg-primary/10 text-primary";
     case "preparing":
+    case "quality_check":
       return "border-[#8A5A22]/30 bg-[#F3E2C4] text-[#6A4312]";
     case "ready":
+    case "out_for_delivery":
       return "border-gomen/30 bg-gomen/10 text-gomen";
     case "picked_up":
     case "delivered":

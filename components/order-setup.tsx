@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DishPhoto } from "@/components/dish-photo";
 import { GuestCountField } from "@/components/guest-count-field";
 import { FulfillmentChoice } from "@/components/fulfillment-choice";
@@ -30,6 +30,7 @@ export function OrderSetup() {
   const [error, setError] = useState("");
   const [capacity, setCapacity] = useState<{ remaining: number; max: number; unit: string } | null>(null);
   const [loadError, setLoadError] = useState("");
+  const pendingKind = useRef<OrderKind | null>(null);
 
   useEffect(() => {
     api<{ settings: PublicSettings }>("/api/settings")
@@ -54,6 +55,7 @@ export function OrderSetup() {
       return;
     }
     if (kind && draft.kind !== kind) {
+      if (pendingKind.current) return;
       setDraft({
         ...defaultDraft(settings, kind),
         fulfillment: draft.fulfillment,
@@ -64,6 +66,7 @@ export function OrderSetup() {
       });
       return;
     }
+    if (pendingKind.current === draft.kind) pendingKind.current = null;
     if (requestedTable && draft.fastingPreference !== requestedTable) {
       setDraft({ ...draft, fastingPreference: requestedTable, lines: [] });
     }
@@ -109,6 +112,7 @@ export function OrderSetup() {
 
   function chooseKind(kind: OrderKind) {
     if (!settings || !active || active.kind === kind) return;
+    pendingKind.current = kind;
     setDraft({
       ...defaultDraft(settings, kind),
       fulfillment: active.fulfillment,
@@ -116,7 +120,7 @@ export function OrderSetup() {
       address: active.address,
       delivery: active.delivery ?? null,
     });
-    router.replace(kind === "weekly" ? "/order?kind=weekly" : "/order?kind=catering");
+    router.replace(kind === "weekly" ? "/order?kind=weekly" : "/order?kind=catering", { scroll: false });
   }
 
   function continueOrder() {

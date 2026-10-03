@@ -12,7 +12,7 @@ export function SiteFooter() {
         </div>
         <div className="text-sm leading-6">
           <p className="font-medium">Kitchen</p>
-          <p className="text-muted-foreground">Gebeta Kitchen, 412 East 9th Street</p>
+          <p className="text-muted-foreground">4473 Rowland N Dr, Stone Mountain, GA 30083</p>
           <p className="text-muted-foreground">Orders need at least one week of notice.</p>
           <Link href="/admin" className="mt-2 inline-block text-primary">
             Staff entrance

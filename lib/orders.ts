@@ -1,5 +1,15 @@
-import { addDays, formatDate, formatTime, isIsoDate, todayISO } from "@/lib/dates";
-import { addonUnitPrice, cateringUnitPrice, serviceQuote, weeklyLineUnit } from "@/lib/packages";
+import { addDays, formatDate, formatTime, formatWhen, isIsoDate, todayISO, zonedDateTime } from "@/lib/dates";
+import {
+  confirmationNotice,
+  deliveryEnRouteNotice,
+  orderUpdatedNotice,
+  pickupReadyNotice,
+  scheduledClock,
+  scheduledDate,
+  staffNewOrderNotice,
+  thankYouNotice,
+} from "@/lib/notices";
+import { addonUnitPrice, buildPackageLines, cateringUnitPrice, serviceQuote, weeklyLineUnit } from "@/lib/packages";
 import { FASTING_LABEL, FULFILLMENT_LABEL, KIND_LABEL, SPICE_LABEL } from "@/lib/format";
 import type {
   Customization,
@@ -9,8 +19,10 @@ import type {
   OrderDraft,
   OrderLine,
   OrderRecord,
+  OrderRevision,
   OrderStatus,
   Preferences,
+  PrepCheck,
   PublicSettings,
   Settings,
   SpiceLevel,
@@ -367,6 +379,7 @@ export function buildLines(menu: MenuItem[], draft: OrderDraft): OrderLine[] {
       mealSlot: draft.kind === "weekly" ? line.mealSlot : null,
       customization,
       summary: describeCustomization(item, customization),
+      source: line.source === "addon" ? "addon" : "included",
     };
   });
 }
@@ -431,7 +444,7 @@ export function createOrder(db: Database, user: UserRecord, draft: OrderDraft): 
   db.seq += 1;
   const order: OrderRecord = {
     id: `ord_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
-    number: `GB-${db.seq}`,
+    number: `GBT-${db.seq}`,
     userId: user.id,
     status: "payment_pending",
     kind: draft.kind,
@@ -468,6 +481,11 @@ export function createOrder(db: Database, user: UserRecord, draft: OrderDraft): 
       },
     ],
     kitchenNote: "",
+    checks: [],
+    notices: [],
+    revisions: [],
+    feedback: null,
+    completedAt: null,
   };
   db.orders.unshift(order);
   return order;
@@ -548,11 +566,13 @@ export function payOrder(
   order.status = "confirmed";
   order.paidAt = now;
   order.paymentLast4 = decision.last4;
-  order.verificationCode = verificationCode();
+  order.verificationCode = order.number;
+  order.checks = buildChecks(order);
+  order.notices.push(staffNewOrderNotice(order, now), confirmationNotice(order, now));
   order.statusHistory.push({
     status: "confirmed",
     at: now,
-    note: `Paid ${moneySafe(order.total)} with card ending ${decision.last4}. The kitchen can start on schedule.`,
+    note: `Paid ${moneySafe(order.total)} with card ending ${decision.last4}. Order ID ${order.number} is the pickup verification code.`,
   });
   return decision;
 }
@@ -588,6 +608,7 @@ export function draftFromOrder(order: OrderRecord): OrderDraft {
       dayIndex: line.dayIndex,
       mealSlot: line.mealSlot,
       customization: line.customization,
+      source: line.source,
     })),
   };
 }
@@ -595,8 +616,10 @@ export function draftFromOrder(order: OrderRecord): OrderDraft {
 const NEXT: Record<OrderStatus, OrderStatus[]> = {
   payment_pending: ["cancelled"],
   confirmed: ["preparing", "cancelled"],
-  preparing: ["ready"],
+  preparing: ["quality_check"],
+  quality_check: ["ready"],
   ready: [],
+  out_for_delivery: ["completed"],
   picked_up: ["completed"],
   delivered: ["completed"],
   completed: [],
@@ -605,27 +628,56 @@ const NEXT: Record<OrderStatus, OrderStatus[]> = {
 
 export function allowedTransitions(order: OrderRecord): OrderStatus[] {
   if (order.status === "ready") {
-    return [order.fulfillment === "pickup" ? "picked_up" : "delivered"];
+    return order.fulfillment === "delivery" ? ["out_for_delivery"] : [];
   }
   return NEXT[order.status];
 }
 
-export function transitionOrder(db: Database, order: OrderRecord, status: OrderStatus, note = ""): void {
+export function transitionOrder(
+  db: Database,
+  order: OrderRecord,
+  status: OrderStatus,
+  note = "",
+  handoff = false,
+): void {
   const allowed = allowedTransitions(order);
-  if (!allowed.includes(status)) {
+  const pickupClose = handoff && status === "completed" && order.status === "ready" && order.fulfillment === "pickup";
+  if (!pickupClose && !allowed.includes(status)) {
     if (order.status === "payment_pending" && status !== "cancelled") {
       throw new OrderError("Payment has not cleared. Do not confirm or prepare this order.");
     }
     throw new OrderError(`This order cannot move from ${order.status} to ${status}.`);
   }
+  if (status === "ready") {
+    if (order.checks.length === 0) order.checks = buildChecks(order);
+    if (order.checks.some((check) => !check.done)) {
+      throw new OrderError("Finish the preparation checklist, including the quality check, before marking this order ready.");
+    }
+  }
   const now = new Date().toISOString();
   order.status = status;
   order.updatedAt = now;
   let historyNote = note.trim();
-  if (status === "ready") {
+  if (status === "ready" && order.fulfillment === "pickup") {
+    const message = pickupReadyNotice(order, db.settings, now);
+    order.notices.push(message);
     order.smsSentAt = now;
-    order.smsBody = buildSms(order, db.settings);
-    historyNote = historyNote || "Marked ready. Pickup text sent with the verification code.";
+    order.smsBody = message.body;
+    historyNote = historyNote || "Marked ready for pickup. The customer was notified with the order ID.";
+  }
+  if (status === "ready" && order.fulfillment === "delivery") {
+    historyNote = historyNote || "Ready for delivery. The customer is notified when the order leaves.";
+  }
+  if (status === "out_for_delivery") {
+    order.notices.push(deliveryEnRouteNotice(order, now));
+    historyNote = historyNote || "Out for delivery. The customer was notified that the order is on the way.";
+  }
+  if (status === "completed" || status === "picked_up" || status === "delivered") {
+    order.completedAt = order.completedAt ?? now;
+    if (!order.notices.some((entry) => entry.kind === "thank_you")) {
+      order.notices.push(thankYouNotice(order, now));
+    }
+    historyNote = historyNote || (order.fulfillment === "pickup" ? "Picked up and completed." : "Delivered and completed.");
   }
   if (status === "cancelled") {
     historyNote = historyNote || "Order cancelled before preparation.";
@@ -636,20 +688,25 @@ export function transitionOrder(db: Database, order: OrderRecord, status: OrderS
   order.statusHistory.push({ status, at: now, note: historyNote });
 }
 
+export function codesMatch(input: string, code: string | null): boolean {
+  if (!code) return false;
+  const normalize = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const given = normalize(input);
+  const expected = normalize(code);
+  return given.length >= 6 && given === expected;
+}
+
 export function verifyHandoff(db: Database, order: OrderRecord, code: string): void {
-  if (order.status !== "ready") {
-    throw new OrderError("The verification code is used when the order is ready.");
+  if (order.fulfillment !== "pickup") {
+    throw new OrderError("Delivery orders are closed when staff mark them delivered.");
   }
-  const normalized = code.replace(/\D/g, "");
-  if (normalized.length !== 6 || normalized !== order.verificationCode) {
+  if (order.status !== "ready") {
+    throw new OrderError("The verification code is used when the order is ready for pickup.");
+  }
+  if (!codesMatch(code, order.verificationCode ?? order.number)) {
     throw new OrderError("That verification code does not match this order.");
   }
-  transitionOrder(
-    db,
-    order,
-    order.fulfillment === "pickup" ? "picked_up" : "delivered",
-    "Verified with the customer's code.",
-  );
+  transitionOrder(db, order, "completed", `Picked up. Verified with ${order.number}.`, true);
 }
 
 export function cancelByCustomer(db: Database, order: OrderRecord): void {
@@ -660,10 +717,13 @@ export function cancelByCustomer(db: Database, order: OrderRecord): void {
 }
 
 export function toCustomerOrder(order: OrderRecord) {
+  const paid = Boolean(order.paidAt);
   return {
     ...order,
-    verificationCode: order.smsSentAt ? order.verificationCode : null,
+    verificationCode: paid ? order.verificationCode : null,
     smsBody: order.smsSentAt ? order.smsBody : null,
+    kitchenNote: "",
+    notices: order.notices.filter((entry) => entry.audience === "customer"),
   };
 }
 
@@ -720,4 +780,243 @@ export function lineCountLabel(lines: DraftLine[] | OrderLine[]): string {
 
 export function fastingSummary(order: { fastingPreference: OrderRecord["fastingPreference"]; fulfillment: OrderRecord["fulfillment"] }): string {
   return `${FASTING_LABEL[order.fastingPreference]} · ${FULFILLMENT_LABEL[order.fulfillment]}`;
+}
+
+export function buildChecks(order: OrderRecord): PrepCheck[] {
+  const included = new Map<string, string>();
+  const addons = new Map<string, string>();
+  for (const line of order.lines) {
+    if (line.source === "addon") addons.set(line.itemId, `${line.name} add-on`);
+    else included.set(line.itemId, line.name);
+  }
+  return [
+    ...[...included.entries()].map(([id, label]) => ({ id: `dish:${id}`, label, done: false })),
+    ...[...addons.entries()].map(([id, label]) => ({ id: `addon:${id}`, label, done: false })),
+    { id: "package", label: "Package and containers", done: false },
+    { id: "quality", label: "Final quality check", done: false },
+  ];
+}
+
+export function orderAllergies(order: OrderRecord): string[] {
+  return [...new Set(order.lines.flatMap((line) => line.customization.allergens))];
+}
+
+export function specialInstructions(order: OrderRecord): string[] {
+  const lines: string[] = [];
+  for (const line of order.lines) {
+    const bits: string[] = [];
+    if (line.customization.spiceLevel) bits.push(SPICE_LABEL[line.customization.spiceLevel]);
+    if (line.customization.excludedIngredients.length) {
+      bits.push(`No ${line.customization.excludedIngredients.join(", ").toLowerCase()}`);
+    }
+    if (line.customization.dietary.length) bits.push(line.customization.dietary.join(", "));
+    if (line.customization.notes.trim()) bits.push(line.customization.notes.trim());
+    if (bits.length) lines.push(`${line.name}: ${bits.join(" • ")}`);
+  }
+  return lines;
+}
+
+export function fulfillmentInstant(order: OrderRecord, timeZone: string): Date {
+  return zonedDateTime(scheduledDate(order), scheduledClock(order), timeZone);
+}
+
+export function modificationWindow(order: OrderRecord, settings: Settings, now = new Date()): { open: boolean; reason: "time" | "status" | null; deadline: string | null } {
+  const instant = fulfillmentInstant(order, settings.timezone);
+  const deadline = new Date(instant.getTime() - 24 * 60 * 60 * 1000);
+  if (order.status !== "confirmed" && order.status !== "preparing") {
+    return { open: false, reason: "status", deadline: deadline.toISOString() };
+  }
+  if (instant.getTime() - now.getTime() <= 24 * 60 * 60 * 1000) {
+    return { open: false, reason: "time", deadline: deadline.toISOString() };
+  }
+  return { open: true, reason: null, deadline: deadline.toISOString() };
+}
+
+export function setPrepCheck(order: OrderRecord, checkId: string, done: boolean): void {
+  if (!["confirmed", "preparing", "quality_check"].includes(order.status)) {
+    throw new OrderError("The checklist can be updated while the order is being prepared.");
+  }
+  const check = order.checks.find((entry) => entry.id === checkId);
+  if (!check) throw new OrderError("That preparation item is not on this order.");
+  check.done = done;
+  order.updatedAt = new Date().toISOString();
+}
+
+export function acknowledgeOrder(order: OrderRecord): void {
+  const now = new Date().toISOString();
+  for (const revision of order.revisions) {
+    if (!revision.acknowledgedAt) revision.acknowledgedAt = now;
+  }
+  for (const entry of order.notices) {
+    if (entry.audience === "staff" && !entry.acknowledgedAt) entry.acknowledgedAt = now;
+  }
+  order.updatedAt = now;
+}
+
+export function saveFeedback(order: OrderRecord, rating: number, comment: string): void {
+  if (!["picked_up", "delivered", "completed"].includes(order.status)) {
+    throw new OrderError("Feedback opens after the order is picked up or delivered.");
+  }
+  if (order.feedback) throw new OrderError("Feedback is already on this order.");
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new OrderError("Choose a rating from 1 to 5.");
+  }
+  const text = comment.trim();
+  if (text.length > 800) throw new OrderError("Keep the comment under 800 characters.");
+  order.feedback = { rating, comment: text, at: new Date().toISOString() };
+  order.updatedAt = order.feedback.at;
+}
+
+export interface ReviseResult {
+  preview: boolean;
+  due: number;
+  total: number;
+  changes: string[];
+  order: OrderRecord;
+}
+
+export function reviseOrder(
+  db: Database,
+  order: OrderRecord,
+  input: {
+    addonIds: string[];
+    customizations: Record<string, Partial<Customization>>;
+    preview: boolean;
+    cardNumber?: string;
+    expiry?: string;
+    cvc?: string;
+    name?: string;
+  },
+): ReviseResult {
+  const window = modificationWindow(order, db.settings);
+  if (!window.open) {
+    throw new OrderError(
+      window.reason === "time"
+        ? "This order is scheduled within the next 24 hours. Online modifications are no longer available."
+        : "Online modifications are closed because preparation has moved ahead.",
+      409,
+    );
+  }
+  const draft = draftFromOrder(order);
+  const includedIds = order.lines.filter((line) => line.source !== "addon").map((line) => line.itemId);
+  const includedSet = new Set(includedIds);
+  const addonIds = input.addonIds.filter((id) => !includedSet.has(id));
+  const nextLines = buildPackageLines(
+    draft,
+    db.menu,
+    addonIds,
+    draft.lines,
+    (item) => initialCustomization(item),
+    includedIds,
+  );
+  for (const line of nextLines) {
+    const custom = input.customizations[line.itemId];
+    if (!custom) continue;
+    line.customization = { ...line.customization, ...custom };
+  }
+  draft.lines = nextLines;
+  const lines = validateDraft(db, draft, order.id);
+  const changes = describeRevision(order.lines, lines);
+  if (changes.length === 0) throw new OrderError("Nothing on the order changed.");
+  const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.total, 0));
+  const delivery = order.fulfillment === "delivery" ? roundMoney(order.deliveryFee ?? 0) : 0;
+  const total = roundMoney(subtotal + delivery);
+  const due = roundMoney(Math.max(0, total - order.total));
+  if (input.preview || due > 0) {
+    if (input.preview || !input.cardNumber) {
+      return { preview: true, due, total, changes, order };
+    }
+  }
+  if (due > 0) {
+    if (!input.cardNumber || !input.expiry || !input.cvc || !input.name) {
+      return { preview: true, due, total, changes, order };
+    }
+    if (input.name.trim().length < 2) throw new OrderError("Enter the name on the card.");
+    if (!/^\d{2}\/\d{2}$/.test(input.expiry.trim())) throw new OrderError("Enter an expiry as MM/YY.");
+    if (!/^\d{3,4}$/.test(input.cvc.trim())) throw new OrderError("Enter the card security code.");
+    const decision = cardDecision(input.cardNumber);
+    const now = new Date().toISOString();
+    if (!decision.ok) {
+      order.attempts.push({ at: now, success: false, message: decision.message });
+      order.updatedAt = now;
+      throw new OrderError(decision.message, 402);
+    }
+    order.paymentLast4 = decision.last4;
+    order.attempts.push({ at: now, success: true, message: `Additional ${moneySafe(due)} approved.` });
+  }
+  applyRevision(order, lines, subtotal, total, changes, due);
+  return { preview: false, due, total, changes, order };
+}
+
+function applyRevision(order: OrderRecord, lines: OrderLine[], subtotal: number, total: number, changes: string[], due: number): void {
+  const now = new Date().toISOString();
+  const previous = new Map(order.checks.map((check) => [check.id, check.done]));
+  order.lines = lines;
+  order.subtotal = subtotal;
+  order.total = total;
+  order.updatedAt = now;
+  order.checks = buildChecks(order).map((check) => ({ ...check, done: previous.get(check.id) ?? false }));
+  const revision: OrderRevision = { at: now, summary: changes, acknowledgedAt: null };
+  order.revisions.push(revision);
+  order.notices.push(orderUpdatedNotice(order, changes, now));
+  const paymentNote = due > 0 ? ` Additional ${moneySafe(due)} was paid.` : "";
+  order.statusHistory.push({
+    status: order.status,
+    at: now,
+    note: `Customer updated the order.${paymentNote} ${changes.join(" ")}`,
+  });
+}
+
+function describeRevision(before: OrderLine[], after: OrderLine[]): string[] {
+  const changes: string[] = [];
+  const beforeById = new Map(before.map((line) => [line.itemId, line]));
+  const afterById = new Map(after.map((line) => [line.itemId, line]));
+  for (const line of after) {
+    if (!beforeById.has(line.itemId)) changes.push(`${line.name} added`);
+  }
+  for (const line of before) {
+    if (!afterById.has(line.itemId)) changes.push(`${line.name} removed`);
+  }
+  for (const line of after) {
+    const previous = beforeById.get(line.itemId);
+    if (!previous) continue;
+    if (previous.customization.spiceLevel !== line.customization.spiceLevel) {
+      const from = previous.customization.spiceLevel ? SPICE_LABEL[previous.customization.spiceLevel] : "kitchen default";
+      const to = line.customization.spiceLevel ? SPICE_LABEL[line.customization.spiceLevel] : "kitchen default";
+      changes.push(`${line.name} spice changed from ${from} → ${to}`);
+    }
+    if (previous.customization.allergens.join("|") !== line.customization.allergens.join("|")) {
+      const next = line.customization.allergens.join(", ");
+      changes.push(next ? `${line.name} allergy note set to ${next}` : `${line.name} allergy note cleared`);
+    }
+    if (previous.customization.excludedIngredients.join("|") !== line.customization.excludedIngredients.join("|")) {
+      const next = line.customization.excludedIngredients.join(", ");
+      changes.push(next ? `${line.name}: leave out ${next}` : `${line.name}: ingredient exclusions cleared`);
+    }
+    if (previous.customization.dietary.join("|") !== line.customization.dietary.join("|")) {
+      changes.push(`${line.name} preferences updated`);
+    }
+    if (previous.customization.notes.trim() !== line.customization.notes.trim()) {
+      changes.push(`${line.name} special instructions updated`);
+    }
+  }
+  return changes;
+}
+
+export function orderMatchesQuery(order: OrderRecord, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  const compact = needle.replace(/[^a-z0-9]/g, "");
+  const number = order.number.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return (
+    order.number.toLowerCase().includes(needle) ||
+    (compact.length >= 3 && number.includes(compact)) ||
+    order.customerName.toLowerCase().includes(needle) ||
+    order.customerPhone.replace(/\D/g, "").includes(needle.replace(/\D/g, "")) ||
+    order.customerEmail.toLowerCase().includes(needle)
+  );
+}
+
+export function formatDeadline(iso: string | null): string {
+  return iso ? formatWhen(iso) : "";
 }

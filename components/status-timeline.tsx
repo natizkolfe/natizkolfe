@@ -1,9 +1,10 @@
 import { formatWhen } from "@/lib/dates";
-import { STATUS_LABEL } from "@/lib/format";
+import { displayStatus, STATUS_LABEL } from "@/lib/format";
 import type { Fulfillment, OrderStatus, StatusEvent } from "@/lib/types";
 import { cn } from "cn";
 
-const FLOW: OrderStatus[] = ["payment_pending", "confirmed", "preparing", "ready", "picked_up", "completed"];
+const PICKUP_FLOW: OrderStatus[] = ["confirmed", "preparing", "quality_check", "ready", "completed"];
+const DELIVERY_FLOW: OrderStatus[] = ["confirmed", "preparing", "quality_check", "ready", "out_for_delivery", "completed"];
 
 export function StatusTimeline({
   history,
@@ -22,7 +23,10 @@ export function StatusTimeline({
       </div>
     );
   }
-  const steps = FLOW.map((step) => (step === "picked_up" && fulfillment === "delivery" ? "delivered" : step));
+  const steps = [
+    ...(status === "payment_pending" ? (["payment_pending"] as OrderStatus[]) : []),
+    ...(fulfillment === "delivery" ? DELIVERY_FLOW : PICKUP_FLOW),
+  ];
   const reached = new Set(history.map((event) => event.status));
   return (
     <div>
@@ -42,7 +46,7 @@ export function StatusTimeline({
               </span>
               <div>
                 <p className={cn("text-sm font-medium", !done && !current && "text-muted-foreground")}>
-                  {STATUS_LABEL[step]}
+                  {displayStatus(step, fulfillment)}
                 </p>
                 {history.find((event) => event.status === step) ? (
                   <p className="text-xs text-muted-foreground">

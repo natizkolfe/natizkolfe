@@ -97,10 +97,7 @@ export function PayOrder() {
         </section>
         <aside className="text-sm leading-7 text-muted-foreground">
           <p>
-            After payment you get an order number, the dishes and quantities, every customization, the amount paid, and the pickup or delivery date.
-          </p>
-          <p className="mt-3">
-            The verification code is texted when the order is ready, not before. Staff will ask for it at the door.
+            After payment the order ID is your verification code. It stays on the confirmation, your order history, and the receipt. Staff ask for it at pickup.
           </p>
         </aside>
       </div>

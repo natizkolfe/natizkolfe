@@ -1,6 +1,6 @@
 import { readAuth } from "@/lib/auth";
 import { errorMessage, fail, readJson, type IdContext } from "@/lib/http";
-import { OrderError, transitionOrder } from "@/lib/orders";
+import { OrderError, acknowledgeOrder, setPrepCheck, transitionOrder } from "@/lib/orders";
 import { readDb, withDb } from "@/lib/store";
 import type { OrderStatus } from "@/lib/types";
 
@@ -8,7 +8,9 @@ const STATUSES: OrderStatus[] = [
   "payment_pending",
   "confirmed",
   "preparing",
+  "quality_check",
   "ready",
+  "out_for_delivery",
   "picked_up",
   "delivered",
   "completed",
@@ -37,6 +39,10 @@ export async function PATCH(request: Request, context: IdContext) {
         found.kitchenNote = body.kitchenNote.trim().slice(0, 500);
         found.updatedAt = new Date().toISOString();
       }
+      if (typeof body.checkId === "string") {
+        setPrepCheck(found, body.checkId, Boolean(body.done));
+      }
+      if (body.acknowledge === true) acknowledgeOrder(found);
       if (typeof body.status === "string") {
         if (!STATUSES.includes(body.status as OrderStatus)) {
           throw new OrderError("Unknown status.");

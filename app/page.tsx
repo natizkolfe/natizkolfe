@@ -56,8 +56,8 @@ export default function HomePage() {
             Choose a one-week or two-week container. The standard meals are already inside. Add extras only if the week needs them.
           </p>
           <div className="mt-5 grid grid-cols-2 items-stretch gap-3">
-            <div className="h-full rounded-xl border border-primary bg-primary/5 p-3 shadow-[inset_0_0_0_1px_var(--primary)]">
-              <WeeklyContainer days={7} selected />
+            <div className="h-full rounded-xl border border-border bg-background p-3">
+              <WeeklyContainer days={7} />
             </div>
             <div className="h-full rounded-xl border border-border bg-background p-3">
               <WeeklyContainer days={14} />

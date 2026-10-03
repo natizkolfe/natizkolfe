@@ -11,9 +11,8 @@ export const defaultSettings = (): Settings => ({
   minCateringGuests: 10,
   maxGuestsPerDay: 80,
   maxWeeklyServingsPerDay: 100,
-  pickupAddress: "Gebeta Kitchen, 412 East 9th Street",
-  pickupInstructions:
-    "Use the side door marked Gebeta. Have your verification code ready for the kitchen.",
+  pickupAddress: "4473 Rowland N Dr, Stone Mountain, GA 30083",
+  pickupInstructions: "Have the order ID ready. Staff match it before the food is handed over.",
   deliveryNote: "A driver will text when they are close. Keep the verification code handy.",
   deliveryOrigin: "4473 Rowland N Dr, Stone Mountain, GA 30083",
   deliveryRatePerMile: 2,
@@ -22,6 +21,7 @@ export const defaultSettings = (): Settings => ({
   deliveryEnabled: true,
   deliveryZipCodes: [],
   freeDelivery: false,
+  staffPhone: "",
   timezone: "America/New_York",
 });
 
@@ -32,7 +32,7 @@ function seed(): Database {
     orders: [],
     menu: seedMenu(),
     settings: defaultSettings(),
-    seq: 2400,
+    seq: 1047,
   };
 }
 
@@ -43,6 +43,16 @@ function read(): Database {
     if (!parsed.menu?.length) parsed.menu = seedMenu();
     if (!parsed.settings) parsed.settings = defaultSettings();
     parsed.settings = { ...defaultSettings(), ...parsed.settings };
+    for (const order of parsed.orders ?? []) {
+      order.checks ??= [];
+      order.notices ??= [];
+      order.revisions ??= [];
+      order.feedback ??= null;
+      order.completedAt ??= null;
+      for (const line of order.lines ?? []) {
+        line.source ??= "included";
+      }
+    }
     return parsed;
   } catch {
     const db = seed();

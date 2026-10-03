@@ -9,7 +9,9 @@ export type OrderStatus =
   | "payment_pending"
   | "confirmed"
   | "preparing"
+  | "quality_check"
   | "ready"
+  | "out_for_delivery"
   | "picked_up"
   | "delivered"
   | "completed"
@@ -109,6 +111,7 @@ export interface OrderLine {
   mealSlot: MealSlot | null;
   customization: Customization;
   summary: string[];
+  source: "included" | "addon";
 }
 
 export interface PaymentAttempt {
@@ -121,6 +124,42 @@ export interface StatusEvent {
   status: OrderStatus;
   at: string;
   note: string;
+}
+
+export interface PrepCheck {
+  id: string;
+  label: string;
+  done: boolean;
+}
+
+export type NoticeKind =
+  | "staff_new_order"
+  | "customer_confirmation"
+  | "ready_pickup"
+  | "out_for_delivery"
+  | "thank_you"
+  | "order_updated";
+
+export interface OrderNotice {
+  id: string;
+  kind: NoticeKind;
+  audience: "staff" | "customer";
+  title: string;
+  body: string;
+  at: string;
+  acknowledgedAt: string | null;
+}
+
+export interface OrderRevision {
+  at: string;
+  summary: string[];
+  acknowledgedAt: string | null;
+}
+
+export interface OrderFeedback {
+  rating: number;
+  comment: string;
+  at: string;
 }
 
 export interface OrderRecord {
@@ -156,6 +195,11 @@ export interface OrderRecord {
   smsBody: string | null;
   statusHistory: StatusEvent[];
   kitchenNote: string;
+  checks: PrepCheck[];
+  notices: OrderNotice[];
+  revisions: OrderRevision[];
+  feedback: OrderFeedback | null;
+  completedAt: string | null;
 }
 
 export interface Preferences {
@@ -216,6 +260,8 @@ export interface Settings {
   /** Empty means every ZIP code is allowed. */
   deliveryZipCodes: string[];
   freeDelivery: boolean;
+  /** Phone that receives the new-order alert when the staff portal is open. */
+  staffPhone: string;
   timezone: string;
 }
 
