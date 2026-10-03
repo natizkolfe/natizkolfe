@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
@@ -43,14 +44,36 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  render,
+  nativeButton,
+  disabled,
+  children,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  const classes = cn(buttonVariants({ variant, size, className }))
+
+  // A link that looks like a button must stay a link. Base UI's button adds
+  // button semantics, and warns once for every link passed through `render`.
+  if (React.isValidElement<{ className?: string; onClick?: React.MouseEventHandler }>(render)) {
+    return React.cloneElement(render, {
+      className: cn(classes, disabled && "pointer-events-none opacity-50", render.props.className),
+      "aria-disabled": disabled ? true : undefined,
+      tabIndex: disabled ? -1 : undefined,
+      children,
+    } as { className?: string; tabIndex?: number })
+  }
+
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={classes}
+      disabled={disabled}
+      nativeButton={nativeButton}
+      render={render}
       {...props}
-    />
+    >
+      {children}
+    </ButtonPrimitive>
   )
 }
 

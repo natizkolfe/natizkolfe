@@ -99,7 +99,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const clearDraft = useCallback(() => setDraft(null), [setDraft]);
 
   return (
-    <ThemeProvider attribute="class" forcedTheme="light" enableSystem={false}>
+    <ThemeProvider attribute="class" forcedTheme="light" enableSystem={false} enableColorScheme={false}>
       <AuthContext.Provider value={{ user, staff, ready, refresh }}>
         <DraftContext.Provider value={{ draft, hydrated, setDraft, clearDraft }}>
           {children}

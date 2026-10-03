@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { PageIntro, Shell } from "@/components/page-intro";
 import { useAuth } from "@/components/providers";
+import { TEST_CARD, TestCardButton } from "@/components/payment-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -302,6 +303,14 @@ export function ModifyOrder({ orderId }: { orderId: string }) {
             {quote.due > 0 ? (
               <div className="mt-4 grid gap-3">
                 <p className="text-sm">Pay {money(quote.due)} before this change is confirmed.</p>
+                <TestCardButton
+                  onUse={() => {
+                    setCardNumber(TEST_CARD.number);
+                    setExpiry(TEST_CARD.expiry);
+                    setCvc(TEST_CARD.cvc);
+                    setError("");
+                  }}
+                />
                 <Label htmlFor="mod-name">Name on card</Label>
                 <Input id="mod-name" className="h-11 bg-background px-3" value={name} onChange={(event) => setName(event.target.value)} />
                 <Label htmlFor="mod-card">Card number</Label>
