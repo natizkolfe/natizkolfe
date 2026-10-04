@@ -12,9 +12,10 @@ import { FASTING_LABEL, FULFILLMENT_LABEL, money } from "@/lib/format";
 import { DishPhoto } from "@/components/dish-photo";
 import { FulfillmentChoice } from "@/components/fulfillment-choice";
 import { WeeklyContainer } from "@/components/weekly-container";
-import { addonUnitPrice, dishLabel, dishSide, serviceQuote, sideLabel } from "@/lib/packages";
+import { addonUnitPrice, dishLabel, dishSide, serviceQuote, sideLabel, weeklyContainer } from "@/lib/packages";
+import { containerForDays, foodOffer, weeklyUnitPrice } from "@/lib/portions";
 import { describeCustomization, lineCountLabel, scheduleProblems, unitPrice } from "@/lib/orders";
-import type { MenuItem, PublicSettings } from "@/lib/types";
+import type { DraftLine, MenuItem, OrderDraft, PublicSettings } from "@/lib/types";
 
 export function OrderReview() {
   const router = useRouter();
@@ -44,7 +45,7 @@ export function OrderReview() {
   if (!draft || draft.lines.length === 0) {
     return (
       <Shell>
-        <PageIntro title="Nothing to review yet" lede="Choose a fasting, non-fasting, or mixed package. A mixed order needs at least one standard dish." />
+        <PageIntro title="Nothing to review yet" lede="Choose at least one meal for a weekly order, or a catering package." />
         <Button className="mt-6 h-11 px-4" render={<Link href={draft ? "/order/menu" : "/order"} />}>
           {draft ? "Back to the package" : "Start an order"}
         </Button>
@@ -70,9 +71,13 @@ export function OrderReview() {
 
   const problem =
     scheduleProblems(draft, settings) ??
-    (draft.fastingPreference === "mixed" && !draft.lines.some((line) => line.source === "included")
-      ? "Choose at least one standard dish for the mixed package. The package price stays the same."
-      : null);
+    (draft.kind === "weekly" && !draft.lines.some((line) => line.source === "included")
+      ? "Choose at least one meal."
+      : draft.kind === "catering" &&
+          draft.fastingPreference === "mixed" &&
+          !draft.lines.some((line) => line.source === "included")
+        ? "Choose at least one standard dish for the mixed package. The package price stays the same."
+        : null);
   const rows = draft.lines.map((line) => {
     const item = menu.find((entry) => entry.id === line.itemId);
     return { line, item };
@@ -85,6 +90,9 @@ export function OrderReview() {
     ? quote.total
     : rows.reduce((sum, row) => {
         if (!row.item) return sum;
+        if (draft.kind === "weekly") {
+          return sum + weeklyUnitPrice(row.line.itemId, row.line.source) * row.line.quantity;
+        }
         const perDay =
           row.line.source === "addon"
             ? addonUnitPrice(draft.fastingPreference, row.line.itemId)
@@ -111,7 +119,11 @@ export function OrderReview() {
             <dl className="mt-3 grid gap-2 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Order</dt>
-                <dd>{draft.kind === "weekly" ? `${draft.durationDays}-day meal plan` : `Catering for ${draft.guestCount}`}</dd>
+                <dd>
+                  {draft.kind === "weekly"
+                    ? weeklyContainer(draft.durationDays).title
+                    : `Catering for ${draft.guestCount}`}
+                </dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">When</dt>
@@ -136,6 +148,14 @@ export function OrderReview() {
           {draft.kind === "weekly" ? (
             <WeeklyContainer days={draft.durationDays} selected />
           ) : null}
+          {draft.kind === "weekly" ? (
+            <WeeklySummary
+              draft={draft}
+              rows={rows}
+              onRemove={(lineId) => setDraft({ ...draft, lines: draft.lines.filter((entry) => entry.lineId !== lineId) })}
+            />
+          ) : null}
+          {draft.kind === "catering" ? (
           <section className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-display text-2xl">{quote ? "Catering order summary" : "Package"}</h2>
@@ -236,6 +256,7 @@ export function OrderReview() {
               );
             })}
           </section>
+          ) : null}
           {draft.fulfillment === "delivery" && draft.delivery ? (
             <section className="rounded-xl border border-border bg-card p-5">
               <h2 className="font-display text-2xl">Delivery</h2>
@@ -285,5 +306,102 @@ export function OrderReview() {
         </aside>
       </div>
     </Shell>
+  );
+}
+
+function WeeklySummary({
+  draft,
+  rows,
+  onRemove,
+}: {
+  draft: OrderDraft;
+  rows: { line: DraftLine; item: MenuItem | undefined }[];
+  onRemove: (lineId: string) => void;
+}) {
+  const container = weeklyContainer(draft.durationDays);
+  const sides =
+    draft.fastingPreference === "non_fasting"
+      ? (["non_fasting"] as const)
+      : draft.fastingPreference === "fasting"
+        ? (["fasting"] as const)
+        : (["fasting", "non_fasting"] as const);
+  const addons = rows.filter(({ line }) => line.source === "addon");
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-5">
+      <h2 className="font-display text-2xl">Your Weekly Meal</h2>
+      <p className="mt-2 text-sm">{container.title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">Container: {container.short}</p>
+      {sides.map((side) => {
+        const meals = rows.filter(({ line }) => {
+          if (line.source !== "included") return false;
+          if (draft.fastingPreference !== "mixed") return true;
+          return (dishSide(line.itemId) ?? "fasting") === side;
+        });
+        if (meals.length === 0) return null;
+        return (
+          <div key={side} className="mt-5">
+            <h3 className="text-xs tracking-[0.14em] text-primary uppercase">
+              {side === "fasting" ? "Fasting" : "Non-Fasting"}
+            </h3>
+            <ul className="mt-3 grid gap-4">
+              {meals.map(({ line, item }) => (
+                <li key={line.lineId} className="border-t border-border pt-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <DishPhoto id={line.itemId} />
+                      <div>
+                        <p className="font-medium">{foodOffer(line.itemId)?.label ?? dishLabel(line.itemId) ?? item?.name ?? "Unavailable dish"}</p>
+                        <p className="text-sm text-muted-foreground">{containerForDays(draft.durationDays).sizeLabel}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {money(weeklyUnitPrice(line.itemId, "included"))} × {line.quantity}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm tabular-nums">
+                      {money(weeklyUnitPrice(line.itemId, "included") * line.quantity)}
+                    </p>
+                  </div>
+                  {item && describeCustomization(item, line.customization).length ? (
+                    <ul className="mt-2 grid gap-1 text-sm text-muted-foreground">
+                      {describeCustomization(item, line.customization).map((entry) => (
+                        <li key={entry}>{entry}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+      <div className="mt-5">
+        <h3 className="text-xs tracking-[0.14em] text-primary uppercase">Add-ons</h3>
+        {addons.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">None</p>
+        ) : (
+          <ul className="mt-3 grid gap-3">
+            {addons.map(({ line, item }) => {
+              const price =
+                (draft.kind === "weekly" ? weeklyUnitPrice(line.itemId, "addon") : addonUnitPrice(draft.fastingPreference, line.itemId)) *
+                line.quantity;
+              return (
+                <li key={line.lineId} className="flex items-start justify-between gap-3 border-t border-border pt-3">
+                  <div>
+                    <p className="text-sm">
+                      {dishLabel(line.itemId) ?? item?.name} × {line.quantity}
+                    </p>
+                    <button type="button" className="mt-1 text-xs text-muted-foreground" onClick={() => onRemove(line.lineId)}>
+                      Remove
+                    </button>
+                  </div>
+                  <p className="text-sm tabular-nums">+{money(price)}</p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }

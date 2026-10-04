@@ -1,3 +1,4 @@
+import { foodOffer, isPortionFood, linesFromPortions, picksFromLines, type PortionPicks } from "@/lib/portions";
 import type { Customization, DraftLine, FastingPreference, MenuItem, OrderDraft } from "@/lib/types";
 
 function roundMoney(value: number): number {
@@ -172,7 +173,7 @@ export function dishLabel(id: string): string | null {
     const match = [...pkg.included, ...pkg.addons].find((dish) => dish.id === id);
     if (match) return match.label;
   }
-  return null;
+  return foodOffer(id)?.label ?? null;
 }
 
 export function dishSide(id: string): "fasting" | "non_fasting" | null {
@@ -184,7 +185,7 @@ export function dishSide(id: string): "fasting" | "non_fasting" | null {
   if (NON_FASTING_PACKAGE.included.some((dish) => dish.id === id) || NON_FASTING_PACKAGE.addons.some((dish) => dish.id === id)) {
     return "non_fasting";
   }
-  return null;
+  return foodOffer(id)?.side ?? null;
 }
 
 export function sideLabel(side: "fasting" | "non_fasting"): string {
@@ -227,25 +228,39 @@ export function servingCount(draft: Pick<OrderDraft, "kind" | "durationDays" | "
 /** Swap `imageSrc` for a photo later. Null keeps the drawn placeholder. */
 export const WEEKLY_CONTAINERS: Record<
   7 | 14,
-  { days: 7 | 14; weeks: 1 | 2; title: string; imageSrc: string | null; imageAlt: string; sizeNote: string }
+  {
+    days: 7 | 14;
+    weeks: 1 | 2;
+    title: string;
+    imageSrc: string | null;
+    imageAlt: string;
+    sizeNote: string;
+    short: string;
+  }
 > = {
   7: {
     days: 7,
     weeks: 1,
-    title: "1 Week Meal Package",
-    imageSrc: "/containers/1-week.png",
-    imageAlt: "Glass container for the 1 week meal package",
-    sizeNote: "Container size to be confirmed.",
+    title: "1 Week Meal Service",
+    imageSrc: "/containers/24oz-round.png",
+    imageAlt: "24 oz round food container with a clear lid",
+    sizeNote: "24 oz Round Container",
+    short: "24 oz Round",
   },
   14: {
     days: 14,
     weeks: 2,
-    title: "2 Week Meal Package",
-    imageSrc: "/containers/2-week.png",
-    imageAlt: "Larger glass container for the 2 week meal package",
-    sizeNote: "Container size to be confirmed.",
+    title: "2 Week Meal Service",
+    imageSrc: "/containers/28oz-square.png",
+    imageAlt: "28 oz square food container with a clear lid",
+    sizeNote: "28 oz Square Container",
+    short: "28 oz Square",
   },
 };
+
+export function weeklyContainer(days: number | null | undefined) {
+  return days === 14 ? WEEKLY_CONTAINERS[14] : WEEKLY_CONTAINERS[7];
+}
 
 export interface CateringQuoteLine {
   id: string;
@@ -264,11 +279,9 @@ export interface ServiceQuote {
 }
 
 export function serviceQuote(draft: Pick<OrderDraft, "kind" | "guestCount" | "durationDays" | "fastingPreference">, addonIds: string[]): ServiceQuote | null {
-  const catering = draft.kind === "catering";
-  const mixedWeekly = draft.kind === "weekly" && draft.fastingPreference === "mixed";
-  if (!catering && !mixedWeekly) return null;
-  const count = catering ? (Number.isInteger(draft.guestCount) && draft.guestCount > 0 ? draft.guestCount : 0) : draft.durationDays;
-  const basePer = catering ? CATERING_PRICE_PER_PERSON : WEEKLY_PACKAGE_PRICE_PER_DAY;
+  if (draft.kind !== "catering") return null;
+  const count = Number.isInteger(draft.guestCount) && draft.guestCount > 0 ? draft.guestCount : 0;
+  const basePer = CATERING_PRICE_PER_PERSON;
   const chosen = new Set(addonIds);
   const catalog = draft.fastingPreference === "mixed" ? mixedAddonChoices([]) : packageFor(draft.fastingPreference).addons;
   const addons = catalog
@@ -280,7 +293,7 @@ export function serviceQuote(draft: Pick<OrderDraft, "kind" | "guestCount" | "du
   const baseTotal = roundMoney(basePer * count);
   return {
     count,
-    countLabel: catering ? "guests" : "days",
+    countLabel: "guests",
     basePer,
     baseTotal,
     addons,
@@ -305,18 +318,14 @@ export function cateringUnitPrice(
   return 0;
 }
 
-/** Weekly included dishes keep their menu price, except a mixed package, which has one flat rate. */
+/** Weekly meals are priced per container. Add-ons use their own rate. The container size comes from the 1-week or 2-week choice. */
 export function weeklyLineUnit(
   preference: FastingPreference,
   line: Pick<DraftLine, "itemId" | "source">,
-  lines: Pick<DraftLine, "itemId" | "source">[],
+  _lines: Pick<DraftLine, "itemId" | "source">[],
   menuUnit: number,
 ): number {
   if (line.source === "addon") return addonUnitPrice(preference, line.itemId);
-  if (preference === "mixed" && line.source === "included") {
-    const first = lines.find((entry) => entry.source === "included")?.itemId;
-    return line.itemId === first ? WEEKLY_PACKAGE_PRICE_PER_DAY : 0;
-  }
   return menuUnit;
 }
 
@@ -370,24 +379,60 @@ export function buildPackageLines(
   previous: DraftLine[],
   customize: (item: MenuItem) => Customization,
   includedIds: string[] = [],
+  quantities: Record<string, number> = {},
+  portions: PortionPicks | null = null,
 ): DraftLine[] {
   const pkg = packageFor(draft.fastingPreference);
-  const quantity = servingCount(draft);
+  const weekly = draft.kind === "weekly";
+  if (weekly) {
+    if (portions) return linesFromPortions(draft, menu, portions, previous, customize);
+    const meals = linesFromPortions(
+      draft,
+      menu,
+      picksFromLines(previous.filter((line) => line.source !== "addon")),
+      previous,
+      customize,
+    );
+    const chosen = new Set(addonIds);
+    const previousById = new Map(previous.map((line) => [line.itemId, line]));
+    const extras = pkg.addons.filter((dish) => chosen.has(dish.id) && !isPortionFood(dish.id));
+    const addonLines = extras.flatMap((row) => {
+      const item = menu.find((entry) => entry.id === row.id && entry.available);
+      if (!item) return [];
+      const existing = previousById.get(row.id);
+      return [
+        {
+          lineId: existing?.lineId ?? `pkg-${row.id}`,
+          itemId: row.id,
+          quantity: 1,
+          dayIndex: 0,
+          mealSlot: existing?.mealSlot ?? "lunch",
+          customization: existing?.customization ?? customize(item),
+          source: "addon" as const,
+          portionId: null,
+        },
+      ];
+    });
+    return [...meals, ...addonLines];
+  }
   const chosen = new Set(addonIds);
   const previousById = new Map(previous.map((line) => [line.itemId, line]));
-  const includedDishes = pkg.choiceLimit
-    ? includedIds
-        .filter((id, index) => includedIds.indexOf(id) === index)
-        .slice(0, pkg.choiceLimit)
-        .flatMap((id) => {
+  const uniqueIncluded = includedIds.filter((id, index) => includedIds.indexOf(id) === index);
+  const includedDishes = weekly
+    ? uniqueIncluded.flatMap((id) => {
+        const dish = pkg.included.find((entry) => entry.id === id);
+        return dish ? [dish] : [];
+      })
+    : pkg.choiceLimit
+      ? uniqueIncluded.slice(0, pkg.choiceLimit).flatMap((id) => {
           const dish = pkg.included.find((entry) => entry.id === id);
           return dish ? [dish] : [];
         })
-    : pkg.included;
+      : pkg.included;
   const includedSet = new Set(includedDishes.map((dish) => dish.id));
   const addonDishes = [
-    ...(pkg.choiceLimit ? pkg.included.filter((dish) => chosen.has(dish.id) && !includedSet.has(dish.id)) : []),
-    ...pkg.addons.filter((dish) => chosen.has(dish.id)),
+    ...(!weekly && pkg.choiceLimit ? pkg.included.filter((dish) => chosen.has(dish.id) && !includedSet.has(dish.id)) : []),
+    ...pkg.addons.filter((dish) => chosen.has(dish.id) && !includedSet.has(dish.id)),
   ];
   const rows = [
     ...includedDishes.map((dish) => ({ ...dish, source: "included" as const })),
@@ -397,13 +442,17 @@ export function buildPackageLines(
     const item = menu.find((entry) => entry.id === row.id && entry.available);
     if (!item) return [];
     const existing = previousById.get(row.id);
+    const requested = quantities[row.id];
+    const quantity = weekly
+      ? Math.max(1, Math.min(20, requested ?? existing?.quantity ?? 1))
+      : servingCount(draft);
     return [
       {
         lineId: existing?.lineId ?? `pkg-${row.id}`,
         itemId: row.id,
         quantity,
-        dayIndex: draft.kind === "weekly" ? 0 : null,
-        mealSlot: draft.kind === "weekly" ? (existing?.mealSlot ?? "lunch") : null,
+        dayIndex: weekly ? 0 : null,
+        mealSlot: weekly ? (existing?.mealSlot ?? "lunch") : null,
         customization: existing?.customization ?? customize(item),
         source: row.source,
       },
@@ -419,7 +468,8 @@ export function samePackageLines(current: DraftLine[], next: DraftLine[]): boole
       previous?.itemId === line.itemId &&
       previous.quantity === line.quantity &&
       previous.source === line.source &&
-      previous.dayIndex === line.dayIndex
+      previous.dayIndex === line.dayIndex &&
+      (previous.portionId ?? null) === (line.portionId ?? null)
     );
   });
 }

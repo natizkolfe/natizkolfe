@@ -10,6 +10,7 @@ import {
   thankYouNotice,
 } from "@/lib/notices";
 import { addonUnitPrice, buildPackageLines, cateringUnitPrice, serviceQuote, weeklyLineUnit } from "@/lib/packages";
+import { containerForDays, foodOffer, weeklyUnitPrice } from "@/lib/portions";
 import { FASTING_LABEL, FULFILLMENT_LABEL, KIND_LABEL, SPICE_LABEL } from "@/lib/format";
 import type {
   Customization,
@@ -339,7 +340,14 @@ export function buildLines(menu: MenuItem[], draft: OrderDraft): OrderLine[] {
   if (draft.lines.length > 80) {
     throw new OrderError("An order can hold up to 80 customized dishes.");
   }
-  if (draft.fastingPreference === "mixed" && !draft.lines.some((entry) => entry.source === "included")) {
+  if (draft.kind === "weekly" && !draft.lines.some((entry) => entry.source === "included")) {
+    throw new OrderError("Choose at least one meal.");
+  }
+  if (
+    draft.kind === "catering" &&
+    draft.fastingPreference === "mixed" &&
+    !draft.lines.some((entry) => entry.source === "included")
+  ) {
     throw new OrderError("Choose at least one standard dish for the mixed package. The package price stays the same.");
   }
   return draft.lines.map((line) => {
@@ -363,10 +371,18 @@ export function buildLines(menu: MenuItem[], draft: OrderDraft): OrderLine[] {
       }
     }
     const customization = sanitizeCustomization(item, line.customization);
-    const unit =
-      draft.kind === "catering"
-        ? cateringUnitPrice(draft.fastingPreference, line, draft.lines)
-        : weeklyLineUnit(draft.fastingPreference, line, draft.lines, unitPrice(item, customization));
+    let unit: number;
+    let portionSummary: string[] = [];
+    if (draft.kind === "catering") {
+      unit = cateringUnitPrice(draft.fastingPreference, line, draft.lines);
+    } else if (line.source === "addon") {
+      unit = weeklyUnitPrice(line.itemId, "addon");
+    } else {
+      const offer = foodOffer(line.itemId);
+      if (!offer || offer.kind !== "meal") throw new OrderError(`Choose a meal for ${item.name}.`);
+      unit = offer.price;
+      portionSummary = [containerForDays(draft.durationDays).sizeLabel];
+    }
     return {
       lineId: line.lineId,
       itemId: item.id,
@@ -378,8 +394,9 @@ export function buildLines(menu: MenuItem[], draft: OrderDraft): OrderLine[] {
       dayIndex: draft.kind === "weekly" ? line.dayIndex : null,
       mealSlot: draft.kind === "weekly" ? line.mealSlot : null,
       customization,
-      summary: describeCustomization(item, customization),
+      summary: [...portionSummary, ...describeCustomization(item, customization)],
       source: line.source === "addon" ? "addon" : "included",
+      portionId: draft.kind === "weekly" ? (line.portionId ?? null) : null,
     };
   });
 }
@@ -609,6 +626,7 @@ export function draftFromOrder(order: OrderRecord): OrderDraft {
       mealSlot: line.mealSlot,
       customization: line.customization,
       source: line.source,
+      portionId: line.portionId ?? null,
     })),
   };
 }
@@ -761,6 +779,9 @@ export function customerTotal(menu: MenuItem[], draft: OrderDraft): { food: numb
     : draft.lines.reduce((sum, line) => {
         const item = menu.find((entry) => entry.id === line.itemId);
         if (!item) return sum;
+        if (draft.kind === "weekly") {
+          return sum + weeklyUnitPrice(line.itemId, line.source) * line.quantity;
+        }
         const unit =
           line.source === "addon"
             ? addonUnitPrice(draft.fastingPreference, line.itemId)

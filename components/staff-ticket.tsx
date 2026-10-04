@@ -202,7 +202,12 @@ export function StaffTicket({ orderId }: { orderId: string }) {
               </ul>
             )}
             <p className="mt-4 text-sm">
-              Container: {order.kind === "weekly" ? (order.durationDays === 14 ? "2 week meal package" : "1 week meal package") : "Catering service"}
+              Container:{" "}
+              {order.kind === "weekly"
+                ? order.durationDays === 14
+                  ? "28 oz Square"
+                  : "24 oz Round"
+                : "Catering service"}
             </p>
             {instructions.length > 0 ? (
               <div className="mt-4">

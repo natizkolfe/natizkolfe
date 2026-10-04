@@ -9,7 +9,7 @@ import { StatusTimeline } from "@/components/status-timeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client-api";
-import { addDays, formatDate, formatTime, formatWhen } from "@/lib/dates";
+import { formatTime, formatWhen } from "@/lib/dates";
 import { displayStatus, FULFILLMENT_LABEL, KIND_LABEL, money, statusTone } from "@/lib/format";
 import { formatDeadline, instructionsFor, modificationWindow, orderHeadline, placeLabel, scheduleLabel } from "@/lib/orders";
 import type { OrderRecord, PublicSettings } from "@/lib/types";
@@ -289,9 +289,9 @@ export function OrderDetail({ orderId }: { orderId: string }) {
                       <p className="font-medium">
                         {line.quantity} × {line.name} <span className="text-muted-foreground">{line.amharic}</span>
                       </p>
-                      {order.kind === "weekly" && line.dayIndex != null && order.startDate ? (
-                        <p className="text-sm capitalize text-muted-foreground">
-                          {formatDate(addDays(order.startDate, line.dayIndex))} · {line.mealSlot}
+                      {order.kind === "weekly" ? (
+                        <p className="text-sm text-muted-foreground">
+                          {line.quantity} × {order.durationDays === 14 ? "28 oz Square" : "24 oz Round"}
                         </p>
                       ) : null}
                     </div>

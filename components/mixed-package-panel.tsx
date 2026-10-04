@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import { DishPhoto } from "@/components/dish-photo";
+import { MealChoiceRow } from "@/components/meal-quantity";
 import { money } from "@/lib/format";
 import {
   CATERING_PRICE_PER_PERSON,
@@ -31,6 +32,9 @@ export function MixedPackagePanel({
   actions,
   servingNote,
   billing = "catering",
+  chooseMeals = false,
+  quantities = {},
+  onQuantity,
 }: {
   selectedIncludedIds: string[];
   onSelectedIncludedIds: (ids: string[]) => void;
@@ -39,12 +43,15 @@ export function MixedPackagePanel({
   actions?: ReactNode;
   servingNote?: string;
   billing?: "catering" | "weekly";
+  chooseMeals?: boolean;
+  quantities?: Record<string, number>;
+  onQuantity?: (id: string, quantity: number) => void;
 }) {
   const [open, setOpen] = useState(selectedAddonIds.length > 0);
   const pkg = MEAL_PACKAGES.mixed;
   const limit = pkg.choiceLimit ?? MIXED_INCLUDED_SELECTIONS;
-  const atLimit = selectedIncludedIds.length >= limit;
-  const extras = mixedAddonChoices(selectedIncludedIds);
+  const atLimit = !chooseMeals && selectedIncludedIds.length >= limit;
+  const extras = chooseMeals ? pkg.addons : mixedAddonChoices(selectedIncludedIds);
   const priceNote =
     billing === "catering"
       ? `${money(CATERING_PRICE_PER_PERSON)} per person. The mix does not change this.`
@@ -58,6 +65,7 @@ export function MixedPackagePanel({
         ? selectedIncludedIds
         : [...selectedIncludedIds, id];
     if (!selected && atLimit) return;
+    if (!selected) onQuantity?.(id, quantities[id] ?? 1);
     onSelectedIncludedIds(next);
     writeIncludedMemory(next);
     if (!selected && selectedAddonIds.includes(id)) {
@@ -78,35 +86,65 @@ export function MixedPackagePanel({
 
   return (
     <article className="flex h-full flex-col rounded-2xl border border-border bg-card p-6">
-      <p className="text-xs tracking-[0.16em] text-primary uppercase">Mixed standard package</p>
-      <h3 className="mt-2 font-display text-4xl">{pkg.name}</h3>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{pkg.detail}</p>
-      <p className="mt-4 text-sm">{priceNote}</p>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {selectedIncludedIds.length} of {limit} standard selections · Included in standard price
+      <p className="text-xs tracking-[0.16em] text-primary uppercase">
+        {chooseMeals ? "Your meal selection" : "Mixed standard package"}
       </p>
+      <h3 className="mt-2 font-display text-4xl">{pkg.name}</h3>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        {chooseMeals
+          ? "Choose fasting and non-fasting foods. Each one starts at one container."
+          : pkg.detail}
+      </p>
+      {chooseMeals ? (
+        <p className="mt-4 text-sm text-muted-foreground">
+          {selectedIncludedIds.length === 0 ? "Nothing selected yet." : `${selectedIncludedIds.length} selected`}
+        </p>
+      ) : (
+        <>
+          <p className="mt-4 text-sm">{priceNote}</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {selectedIncludedIds.length} of {limit} standard selections · Included in standard price
+          </p>
+        </>
+      )}
 
       <div className="mt-5 grid gap-5">
         {SIDES.map(([side, title]) => (
           <section key={side}>
-            <h4 className="text-xs tracking-[0.14em] text-primary uppercase">{title}</h4>
+            <h4 className="text-xs tracking-[0.14em] text-primary uppercase">
+              {chooseMeals ? (side === "fasting" ? "Fasting" : "Non-Fasting") : title}
+            </h4>
             <ul className="mt-3 grid gap-2">
               {pkg.included
                 .filter((dish) => dish.side === side)
-                .map((dish) => (
-                  <IncludedRow
-                    key={dish.id}
-                    dish={dish}
-                    selected={selectedIncludedIds.includes(dish.id)}
-                    disabled={atLimit && !selectedIncludedIds.includes(dish.id)}
-                    onToggle={() => toggleIncluded(dish.id)}
-                  />
-                ))}
+                .map((dish) =>
+                  chooseMeals ? (
+                    <MealChoiceRow
+                      key={dish.id}
+                      id={dish.id}
+                      label={dish.label}
+                      selected={selectedIncludedIds.includes(dish.id)}
+                      quantity={quantities[dish.id] ?? 1}
+                      onToggle={() => toggleIncluded(dish.id)}
+                      onQuantity={(quantity) => onQuantity?.(dish.id, quantity)}
+                    />
+                  ) : (
+                    <IncludedRow
+                      key={dish.id}
+                      dish={dish}
+                      selected={selectedIncludedIds.includes(dish.id)}
+                      disabled={atLimit && !selectedIncludedIds.includes(dish.id)}
+                      onToggle={() => toggleIncluded(dish.id)}
+                    />
+                  ),
+                )}
             </ul>
           </section>
         ))}
       </div>
-      <p className="mt-3 text-xs leading-5 text-muted-foreground">{mixSummary(selectedIncludedIds)}</p>
+      {chooseMeals ? null : (
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">{mixSummary(selectedIncludedIds)}</p>
+      )}
       {atLimit ? (
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
           The standard package includes {limit} dishes. Further dishes are add-ons.
@@ -121,9 +159,11 @@ export function MixedPackagePanel({
         className="mt-6 flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-3 text-left"
       >
         <span>
-          <span className="block text-sm font-medium">Add extra meals</span>
+          <span className="block text-sm font-medium">{chooseMeals ? "Want something extra?" : "Add extra meals"}</span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            Optional. Extra fasting and non-fasting dishes are paid add-ons.
+            {chooseMeals
+              ? "Optional. Add-ons are a separate charge from the meals you selected."
+              : "Optional. Extra fasting and non-fasting dishes are paid add-ons."}
           </span>
         </span>
         <span
@@ -184,7 +224,7 @@ export function MixedPackagePanel({
                           <span className="ml-auto text-sm tabular-nums">
                             {billing === "catering"
                               ? `+ ${money(dish.pricePerPerson ?? 0)}/person`
-                              : `+ ${money(dish.pricePerPerson ?? 0)} each day`}
+                              : `+ ${money(dish.pricePerPerson ?? 0)}`}
                           </span>
                         </button>
                       </li>
@@ -197,7 +237,7 @@ export function MixedPackagePanel({
           <p className="mt-3 text-xs leading-5 text-muted-foreground">
             {billing === "catering"
               ? "Add-ons are an extra charge per person, on top of the $21 standard package."
-              : "Add-ons are an extra charge for every day of the container you chose."}
+              : "Add-ons are an extra charge. They are not part of the meals you selected."}
           </p>
         </div>
       ) : null}

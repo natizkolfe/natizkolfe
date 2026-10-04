@@ -14,6 +14,9 @@ export function WeeklyContainer({
 
   return (
     <figure className={cn("grid h-full gap-3", className)}>
+      <figcaption>
+        <p className="font-display text-2xl">{container.title}</p>
+      </figcaption>
       <div
         className={cn(
           "flex h-28 items-center justify-center overflow-hidden rounded-xl border bg-white px-3",
@@ -30,10 +33,7 @@ export function WeeklyContainer({
           <ContainerDrawing weeks={container.weeks} />
         )}
       </div>
-      <figcaption>
-        <p className="font-display text-2xl">{container.title}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{container.sizeNote}</p>
-      </figcaption>
+      <p className="text-sm font-medium">{container.sizeNote}</p>
     </figure>
   );
 }

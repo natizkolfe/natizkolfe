@@ -41,6 +41,12 @@ function read(): Database {
     const raw = fs.readFileSync(FILE, "utf8");
     const parsed = JSON.parse(raw) as Database;
     if (!parsed.menu?.length) parsed.menu = seedMenu();
+    else {
+      const ids = new Set(parsed.menu.map((item) => item.id));
+      for (const item of seedMenu()) {
+        if (!ids.has(item.id)) parsed.menu.push(item);
+      }
+    }
     if (!parsed.settings) parsed.settings = defaultSettings();
     parsed.settings = { ...defaultSettings(), ...parsed.settings };
     for (const order of parsed.orders ?? []) {

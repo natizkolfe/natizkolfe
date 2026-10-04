@@ -75,6 +75,8 @@ export interface DraftLine {
   mealSlot: MealSlot | null;
   customization: Customization;
   source?: "included" | "addon";
+  /** Weekly portion the customer chose. Catering lines leave this empty. */
+  portionId?: string | null;
 }
 
 export interface DeliveryQuote {
@@ -112,6 +114,7 @@ export interface OrderLine {
   customization: Customization;
   summary: string[];
   source: "included" | "addon";
+  portionId: string | null;
 }
 
 export interface PaymentAttempt {

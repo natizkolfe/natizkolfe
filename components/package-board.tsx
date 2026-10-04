@@ -1,68 +1,42 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { MixedPackagePanel } from "@/components/mixed-package-panel";
-import { PackagePanel } from "@/components/package-panel";
 import { Button } from "@/components/ui/button";
-import { MEAL_PACKAGES, readAddonMemory, readIncludedMemory } from "@/lib/packages";
+import type { FastingPreference } from "@/lib/types";
 
-const EMPTY = { fasting: [] as string[], non_fasting: [] as string[], mixed: [] as string[] };
+const PACKAGES: { id: FastingPreference; title: string; detail: string }[] = [
+  {
+    id: "fasting",
+    title: "Fasting",
+    detail: "Traditional Ethiopian fasting selections.",
+  },
+  {
+    id: "non_fasting",
+    title: "Non-Fasting",
+    detail: "Traditional Ethiopian non-fasting selections.",
+  },
+  {
+    id: "mixed",
+    title: "Mixed Order",
+    detail: "Choose a combination of fasting and non-fasting foods.",
+  },
+];
 
 export function PackageBoard() {
-  const [selected, setSelected] = useState(EMPTY);
-  const [included, setIncluded] = useState<string[]>([]);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    setSelected(readAddonMemory());
-    setIncluded(readIncludedMemory());
-    setReady(true);
-  }, []);
-
   return (
-    <div className="mt-6 grid gap-4 lg:grid-cols-2">
-      {(["fasting", "non_fasting"] as const).map((id) => (
-        <PackagePanel
-          key={`${id}-${ready}`}
-          pkg={MEAL_PACKAGES[id]}
-          billing="catering"
-          selectedAddonIds={ready ? selected[id] : []}
-          onSelectedAddonIds={(ids) => setSelected((current) => ({ ...current, [id]: ids }))}
-          servingNote="One serving of each included dish. You do not add these yourself."
-          actions={
-            <>
-              <Button className="h-10 px-3" render={<Link href={`/order?kind=weekly&table=${id}`} />}>
-                Weekly meals
-              </Button>
-              <Button variant="outline" className="h-10 bg-background px-3" render={<Link href={`/order?kind=catering&table=${id}`} />}>
-                Catering
-              </Button>
-            </>
-          }
-        />
+    <div className="mt-6 grid gap-4 lg:grid-cols-3">
+      {PACKAGES.map((pkg) => (
+        <article key={pkg.id} className="flex h-full flex-col rounded-2xl border border-border bg-card p-6">
+          <h3 className="font-display text-4xl">{pkg.title}</h3>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">{pkg.detail}</p>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Button className="h-10 px-3" render={<Link href={`/order?kind=weekly&table=${pkg.id}`} />}>
+              Weekly Meal
+            </Button>
+            <Button variant="outline" className="h-10 bg-background px-3" render={<Link href={`/order?kind=catering&table=${pkg.id}`} />}>
+              Catering
+            </Button>
+          </div>
+        </article>
       ))}
-      <div className="lg:col-span-2">
-        <MixedPackagePanel
-          key={`mixed-${ready}`}
-          billing="catering"
-          selectedIncludedIds={ready ? included : []}
-          onSelectedIncludedIds={setIncluded}
-          selectedAddonIds={ready ? selected.mixed : []}
-          onSelectedAddonIds={(ids) => setSelected((current) => ({ ...current, mixed: ids }))}
-          servingNote="Choose up to four standard dishes from either table. The $21 price does not change. Further dishes are add-ons."
-          actions={
-            <>
-              <Button className="h-10 px-3" render={<Link href="/order?kind=weekly&table=mixed" />}>
-                Weekly meals
-              </Button>
-              <Button variant="outline" className="h-10 bg-background px-3" render={<Link href="/order?kind=catering&table=mixed" />}>
-                Catering
-              </Button>
-            </>
-          }
-        />
-      </div>
     </div>
   );
 }

@@ -274,7 +274,10 @@ function OrderCard({
           <p className="text-xs tracking-[0.14em] text-primary uppercase">Standard package</p>
           <ul className="mt-2 grid gap-1 text-sm">
             {included.map((line) => (
-              <li key={line.lineId}>✓ {line.name}</li>
+              <li key={line.lineId}>
+                ✓ {line.name}
+                {order.kind === "weekly" ? ` · ${line.quantity} × ${order.durationDays === 14 ? "28 oz Square" : "24 oz Round"}` : ""}
+              </li>
             ))}
           </ul>
         </div>

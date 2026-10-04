@@ -11,8 +11,8 @@ export const dynamic = "force-dynamic";
 
 const STEPS = [
   ["Service", "Weekly meal preparation, or catering for a set number of guests."],
-  ["Table", "Fasting, non-fasting, or a mixed order. Mixed uses the same standard price."],
-  ["Package", "Fasting and non-fasting dishes come with the package. A mixed order lets you choose which of those dishes to include."],
+  ["Table", "Fasting, non-fasting, or a mixed order."],
+  ["Package", "Weekly meals are the ones you check. Catering includes the standard dishes for every guest."],
   ["Add-ons", "Optional dishes stay closed until you ask for them, and each has its own charge."],
   ["Preferences", "Spice, allergies, and a note for the kitchen."],
   ["Pay", "Nothing is cooked until the card clears."],
@@ -30,7 +30,7 @@ export default function HomePage() {
             Order the week. Or the whole table.
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground">
-            Gebeta cooks complete packages for the week, or for the table. Choose fasting, non-fasting, or a mix of both at the same standard price. Add only the extras you want.
+            Gebeta cooks weekly meals you choose, or catering for the table. Pick fasting, non-fasting, or a mix. Add only the extras you want.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button className="h-11 px-4" render={<Link href="/order?kind=weekly" />}>
@@ -53,7 +53,7 @@ export default function HomePage() {
           <p className="text-xs tracking-[0.16em] text-primary uppercase">01</p>
           <h2 className="mt-2 font-display text-4xl">Meal preparation</h2>
           <p className="mt-3 max-w-md text-sm leading-7 text-muted-foreground">
-            Choose a one-week or two-week container. The standard meals are already inside. Add extras only if the week needs them.
+            A one-week order uses a 24 oz round container. A two-week order uses a 28 oz square container. You choose the meals that go in them.
           </p>
           <div className="mt-5 grid grid-cols-2 items-stretch gap-3">
             <div className="h-full rounded-xl border border-border bg-background p-3">
@@ -80,9 +80,9 @@ export default function HomePage() {
       </section>
 
       <section id="packages" className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
-        <h2 className="font-display text-4xl">Choose a package</h2>
+        <h2 className="font-display text-4xl">Choose your meal style</h2>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
-          Gebeta sells the meal, not a list of dishes to assemble. Fasting and non-fasting packages arrive already chosen. A mixed order lets you pick from both, still at the standard price. Extra meals stay hidden until you open them.
+          Pick fasting, non-fasting, or a mix, then continue to weekly meals or catering. The meals, containers, and add-ons are chosen on the order page.
         </p>
         <PackageBoard />
       </section>
@@ -104,7 +104,7 @@ export default function HomePage() {
         <div>
           <h2 className="font-display text-4xl">Fasting, non-fasting, or both</h2>
           <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            On fasting days, Ethiopian Orthodox cooking sets meat and dairy aside. The fasting package and the non-fasting package stay separate. A mixed order is the same standard price, and you choose the fasting and non-fasting dishes inside it. You pay more only when you add extras.
+            On fasting days, Ethiopian Orthodox cooking sets meat and dairy aside. Weekly orders let you check fasting meals, non-fasting meals, or both. Catering still includes the standard dishes for every guest, and a mixed catering order stays at the standard per-person price. You pay more only when you add extras.
           </p>
         </div>
         <div>

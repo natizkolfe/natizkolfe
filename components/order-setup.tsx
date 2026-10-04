@@ -161,14 +161,18 @@ export function OrderSetup() {
       <PageIntro
         eyebrow="New order"
         title={active.kind === "weekly" ? "Plan the week." : "Count the table."}
-        lede="Choose the service, then fasting, non-fasting, or a mixed order. A mixed order uses the same standard price and lets you choose the dishes. Payment still has to clear before the kitchen confirms it."
+        lede={
+          active.kind === "weekly"
+            ? "Choose one week or two weeks, then fasting, non-fasting, or mixed. You check the meals and how many containers of each. Payment still has to clear before the kitchen confirms it."
+            : "Count the guests, then fasting, non-fasting, or a mixed order. A mixed catering order uses the same standard price. Payment still has to clear before the kitchen confirms it."
+        }
       />
 
       <div className="mt-8 grid gap-3 sm:grid-cols-2">
         <KindCard
           selected={active.kind === "weekly"}
           title="Weekly meal preparation"
-          detail="Seven or fourteen days of the standard package, with optional extra dishes."
+          detail="One week in a 24 oz round container, or two weeks in a 28 oz square container."
           onClick={() => chooseKind("weekly")}
         />
         <KindCard
@@ -190,7 +194,7 @@ export function OrderSetup() {
           {active.kind === "weekly" ? (
             <div className="grid gap-4">
               <fieldset className="grid gap-3">
-                <legend className="text-sm font-medium">Choose the container</legend>
+                <legend className="text-sm font-medium">Choose duration</legend>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {([7, 14] as const).map((days) => {
                     const selected = active.durationDays === days;
@@ -290,8 +294,10 @@ export function OrderSetup() {
                   </span>
                   <span className="mt-2 block text-sm font-medium">{option.title}</span>
                   <span className="mt-1 block text-xs leading-5 text-muted-foreground">{option.detail}</span>
-                  <span className="mt-2 block text-xs font-medium">{option.note}</span>
-                  {option.id === "mixed" ? (
+                  <span className="mt-2 block text-xs font-medium">
+                    {active.kind === "weekly" ? "You choose the meals" : option.note}
+                  </span>
+                  {option.id === "mixed" && active.kind === "catering" ? (
                     <span className="mt-1 block text-xs text-muted-foreground">Same standard price</span>
                   ) : null}
                 </button>
@@ -318,7 +324,12 @@ export function OrderSetup() {
           <p className="text-xs tracking-[0.16em] text-primary uppercase">Before you pay</p>
           <ol className="mt-4 grid gap-3 text-sm leading-6">
             <li>1. Choose the service, then fasting, non-fasting, or mixed.</li>
-            <li>2. A mixed order lets you pick the included dishes. Add-ons are optional.</li>
+            <li>
+              2.{" "}
+              {active.kind === "weekly"
+                ? "Check the meals you want and set a container quantity. Add-ons are optional."
+                : "A mixed order lets you pick the included dishes. Add-ons are optional."}
+            </li>
             <li>3. Set spice and notes, then review.</li>
             <li>4. Pay. Nothing is confirmed until the card clears.</li>
           </ol>

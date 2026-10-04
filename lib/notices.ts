@@ -41,7 +41,10 @@ export function moneyParts(order: OrderRecord): { food: number; addons: number; 
 function mealLines(order: OrderRecord): string {
   const included = order.lines.filter((line) => line.source !== "addon");
   if (included.length === 0) return "None listed";
-  return included.map((line) => line.name).join("\n");
+  const container = order.kind === "weekly" ? (order.durationDays === 14 ? "28 oz Square" : "24 oz Round") : "";
+  return included
+    .map((line) => (container ? `${line.name} — Quantity: ${line.quantity} — Container: ${container}` : line.name))
+    .join("\n");
 }
 
 function addonLines(order: OrderRecord): string {
