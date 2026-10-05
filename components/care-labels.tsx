@@ -69,7 +69,7 @@ export function CareLabels({ orderId }: { orderId: string }) {
           </Link>
           <h1 className="mt-2 font-display text-4xl">Print labels</h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-            One sticker per container, plus a full-order sticker. The QR code opens the care page. The instruction text stays off the sticker.
+            Each dish gets one QR code. Weekly prints that code once. Catering prints the same code once for each guest. A full-order sticker is included. The instruction text stays off the sticker.
             {order.care ? ` Instruction version ${order.care.version}.` : ""}
           </p>
           {order.care?.placeholder ? (
@@ -89,9 +89,9 @@ export function CareLabels({ orderId }: { orderId: string }) {
           {stickers.map((sticker) => (
             <article
               key={sticker.key}
-              className="flex w-[3in] break-inside-avoid flex-col items-center border border-border bg-white px-4 py-4 text-center text-black print:mb-4"
+              className="flex w-[3in] break-inside-avoid flex-col items-center rounded-[28px] border border-border bg-white px-4 py-4 text-center text-black print:mb-4"
             >
-              <img src="/gebeta-logo.png" alt="Gebeta" className="h-10 w-auto" />
+              <img src="/gebeta-logo.png" alt="Gebeta" className="h-10 w-auto rounded-[28px]" />
               <h2 className="mt-3 font-display text-2xl tracking-wide uppercase">{sticker.title}</h2>
               {sticker.size ? <p className="mt-1 text-sm font-medium">{sticker.size}</p> : null}
               {sticker.caption ? <p className="mt-1 text-xs leading-5">{sticker.caption}</p> : null}

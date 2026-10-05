@@ -195,17 +195,23 @@ export interface CareLabel {
   path: string;
 }
 
+/**
+ * One QR per dish. Weekly prints that code once, even when the dish is ordered
+ * more than once. Catering reprints the same code once for each guest.
+ */
+export function labelCopies(order: OrderRecord): number {
+  if (order.kind === "catering") return Math.max(1, order.guestCount ?? 1);
+  return 1;
+}
+
 export function careLabels(order: OrderRecord): CareLabel[] {
   if (!order.careToken || !order.care) return [];
-  const counts = new Map<string, number>();
-  for (const line of order.lines) {
-    counts.set(line.itemId, (counts.get(line.itemId) ?? 0) + line.quantity);
-  }
   const size = containerSize(order);
+  const quantity = labelCopies(order);
   return order.care.foods.map((food) => ({
     foodId: food.foodId,
     name: food.name,
-    quantity: Math.max(1, counts.get(food.foodId) ?? 1),
+    quantity,
     size,
     path: `/care/${order.careToken}/${food.foodId}`,
   }));
