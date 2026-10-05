@@ -104,7 +104,7 @@ export default function HomePage() {
         <div>
           <h2 className="font-display text-4xl">Fasting, non-fasting, or both</h2>
           <p className="mt-4 text-sm leading-7 text-muted-foreground">
-            On fasting days, Ethiopian Orthodox cooking sets meat and dairy aside. Weekly orders let you check fasting meals, non-fasting meals, or both. Catering still includes the standard dishes for every guest, and a mixed catering order stays at the standard per-person price. You pay more only when you add extras.
+            On fasting days, Ethiopian Orthodox cooking sets meat and dairy aside. Weekly orders let you check fasting meals, non-fasting meals, or both. Catering starts with recommended foods you can change, and extras can raise the starting price per person.
           </p>
         </div>
         <div>

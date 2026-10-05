@@ -73,10 +73,8 @@ export function OrderReview() {
     scheduleProblems(draft, settings) ??
     (draft.kind === "weekly" && !draft.lines.some((line) => line.source === "included")
       ? "Choose at least one meal."
-      : draft.kind === "catering" &&
-          draft.fastingPreference === "mixed" &&
-          !draft.lines.some((line) => line.source === "included")
-        ? "Choose at least one standard dish for the mixed package. The package price stays the same."
+      : draft.kind === "catering" && draft.lines.length === 0
+        ? "Choose at least one catering food."
         : null);
   const rows = draft.lines.map((line) => {
     const item = menu.find((entry) => entry.id === line.itemId);
@@ -158,7 +156,7 @@ export function OrderReview() {
           {draft.kind === "catering" ? (
           <section className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="font-display text-2xl">{quote ? "Catering order summary" : "Package"}</h2>
+              <h2 className="font-display text-2xl">Catering summary</h2>
               <span className="text-sm text-muted-foreground">{lineCountLabel(draft.lines)}</span>
             </div>
             {(["included", "addon", "other"] as const).map((group) => {
@@ -185,13 +183,7 @@ export function OrderReview() {
                 <div key={group} className="mt-5">
                   <div className="flex items-baseline justify-between gap-3">
                     <h3 className="text-xs tracking-[0.14em] text-primary uppercase">
-                      {group === "included"
-                        ? draft.fastingPreference === "mixed"
-                          ? "Included standard selections"
-                          : "Included in Standard Package"
-                        : group === "addon"
-                          ? "Paid add-ons"
-                          : "Other dishes"}
+                      {group === "included" ? "Selected standard foods" : group === "addon" ? "Add-ons" : "Other dishes"}
                     </h3>
                     <span className="text-sm tabular-nums">{money(groupTotal)}</span>
                   </div>
@@ -212,14 +204,14 @@ export function OrderReview() {
                                 {draft.kind === "weekly"
                                   ? `Packed for each day · ${draft.durationDays} days`
                                   : group === "included"
-                                    ? "Included in the standard package"
-                                    : `Extra for each of ${draft.guestCount} guests`}
+                                    ? "Standard selection"
+                                    : `+${money(quote?.addons.find((addon) => addon.id === line.itemId)?.perPerson ?? addonUnitPrice(draft.fastingPreference, line.itemId))}/person`}
                               </p>
                             </div>
                           </div>
                           <p className="text-right text-sm tabular-nums">
                             {group === "included"
-                              ? "Included"
+                              ? "In starting price"
                               : quote
                                 ? `+${money(quote.addons.find((addon) => addon.id === line.itemId)?.perPerson ?? 0)} × ${quote.count} = ${money(quote.addons.find((addon) => addon.id === line.itemId)?.total ?? 0)}`
                                 : item
@@ -232,7 +224,7 @@ export function OrderReview() {
                             {describeCustomization(item, line.customization).length ? (
                               describeCustomization(item, line.customization).map((entry) => <li key={entry}>{entry}</li>)
                             ) : (
-                              <li>{group === "included" ? "Part of the standard package." : "Added to the package."}</li>
+                              <li>{group === "included" ? "Part of the starting catering price." : "Added on top of the starting price."}</li>
                             )}
                           </ul>
                         ) : (
@@ -279,10 +271,17 @@ export function OrderReview() {
             </p>
           ) : null}
           {quote ? (
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {money(quote.basePer)} × {quote.count} {quote.countLabel}
-              {quote.addons.length ? `, plus ${quote.addons.map((addon) => addon.label).join(", ")}` : ""}.
-            </p>
+            <div className="mt-2 grid gap-2 text-sm leading-6 text-muted-foreground">
+              <p>
+                Starting at {money(quote.basePer)} per person. {money(quote.basePer)} × {quote.count} guests = {money(quote.baseTotal)}.
+              </p>
+              {quote.addons.length ? (
+                <p>
+                  Your selection changes the catering price by +
+                  {money(quote.addons.reduce((sum, addon) => sum + addon.perPerson, 0))}/person.
+                </p>
+              ) : null}
+            </div>
           ) : null}
           <p className="mt-4 text-sm leading-6 text-muted-foreground">
             {user
@@ -300,7 +299,7 @@ export function OrderReview() {
               </Button>
             )}
             <Button variant="outline" className="h-11 bg-background" render={<Link href="/order/menu" />}>
-              Edit package
+              {draft.kind === "catering" ? "Edit catering" : "Edit meals"}
             </Button>
           </div>
         </aside>

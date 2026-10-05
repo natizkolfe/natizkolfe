@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CustomizeSheet, type CustomizeDraft } from "@/components/customize-sheet";
 import { GuestCountField } from "@/components/guest-count-field";
 import { FulfillmentChoice } from "@/components/fulfillment-choice";
 import { DishPhoto } from "@/components/dish-photo";
-import { MixedPackagePanel } from "@/components/mixed-package-panel";
+import { CateringMenu } from "@/components/catering-menu";
+import { MealTypeField, useMealTypeNavigation } from "@/components/meal-type-field";
 import { PortionMenu } from "@/components/portion-menu";
-import { PackagePanel } from "@/components/package-panel";
 import { PageIntro, Shell } from "@/components/page-intro";
 import { WeeklyContainer } from "@/components/weekly-container";
 import { useAuth, useDraft } from "@/components/providers";
@@ -19,20 +19,19 @@ import { api } from "@/lib/client-api";
 import { money, SPICE_LABEL } from "@/lib/format";
 import {
   buildPackageLines,
+  CATERING_PRICE_PER_PERSON,
+  cateringSelectionChanged,
+  defaultCateringSelection,
   dishLabel,
   dishSide,
-  MIXED_INCLUDED_SELECTIONS,
-  mixedAddonChoices,
   packageFor,
   readAddonMemory,
-  readIncludedMemory,
   samePackageLines,
   serviceQuote,
-  servingCount,
   sideLabel,
   weeklyContainer,
+  weeklyDishFits,
   writeAddonMemory,
-  writeIncludedMemory,
 } from "@/lib/packages";
 import { containerForDays, picksFromLines, readPortionMemory, weeklyUnitPrice, writePortionMemory, type PortionPicks } from "@/lib/portions";
 import { initialCustomization } from "@/lib/orders";
@@ -44,9 +43,11 @@ const SPICES: SpiceLevel[] = ["mild", "medium", "hot"];
 export function PackageBuilder() {
   const { draft, hydrated, setDraft } = useDraft();
   const { user } = useAuth();
+  const selectMealType = useMealTypeNavigation("/order/menu");
   const [menu, setMenu] = useState<MenuItem[] | null>(null);
   const [error, setError] = useState("");
   const [pick, setPick] = useState<{
+    kind: "weekly" | "catering";
     preference: FastingPreference;
     addonIds: string[];
     includedIds: string[];
@@ -56,6 +57,8 @@ export function PackageBuilder() {
   const [editing, setEditing] = useState<CustomizeDraft | null>(null);
   const [note, setNote] = useState("");
   const [spice, setSpice] = useState<SpiceLevel | null>(null);
+  const packageSpice = useRef<SpiceLevel | null>(null);
+  packageSpice.current = spice;
   const [guestLimits, setGuestLimits] = useState({ min: 10, max: 80 });
 
   useEffect(() => {
@@ -78,41 +81,44 @@ export function PackageBuilder() {
 
   const pkg = draft ? packageFor(draft.fastingPreference) : null;
 
-  const selectedAddons = pick && draft && pick.preference === draft.fastingPreference ? pick.addonIds : [];
-  const selectedIncluded = pick && draft && pick.preference === draft.fastingPreference ? pick.includedIds : [];
+  const samePick = pick?.preference === draft?.fastingPreference && pick?.kind === draft?.kind;
+  const selectedAddons = pick && draft && samePick ? pick.addonIds : [];
+  const selectedIncluded = pick && draft && samePick ? pick.includedIds : [];
 
   useEffect(() => {
-    if (!draft || pick?.preference === draft.fastingPreference) return;
+    if (!draft || (pick?.preference === draft.fastingPreference && pick?.kind === draft.kind)) return;
     const current = packageFor(draft.fastingPreference);
-    const allowedAddons = new Set(
-      draft.kind === "weekly"
-        ? current.addons.map((dish) => dish.id)
-        : draft.fastingPreference === "mixed"
-          ? mixedAddonChoices([]).map((dish) => dish.id)
-          : current.addons.map((dish) => dish.id),
-    );
+    const allowedAddons = new Set(current.addons.map((dish) => dish.id));
     const allowedIncluded = new Set(current.included.map((dish) => dish.id));
+    const switching = Boolean(pick && pick.preference !== draft.fastingPreference);
     const fromLines = draft.lines
       .filter((line) => line.source === "addon" && allowedAddons.has(line.itemId))
       .map((line) => line.itemId);
     const addonIds = (
-      fromLines.length ? fromLines : readAddonMemory()[draft.fastingPreference].filter((id) => allowedAddons.has(id))
+      fromLines.length
+        ? fromLines
+        : switching
+          ? []
+          : readAddonMemory()[draft.fastingPreference].filter((id) => allowedAddons.has(id))
     );
     const fromIncluded = draft.lines
       .filter((line) => line.source === "included" && allowedIncluded.has(line.itemId))
       .map((line) => line.itemId);
-    const remembered = draft.fastingPreference === "mixed" ? readIncludedMemory() : [];
-    const includedSource = fromIncluded.length ? fromIncluded : draft.kind === "weekly" ? [] : remembered;
-    const includedIds = includedSource
-      .filter((id) => allowedIncluded.has(id))
-      .slice(0, draft.kind === "weekly" ? undefined : (current.choiceLimit ?? MIXED_INCLUDED_SELECTIONS));
+    const includedSource = fromIncluded.length
+      ? fromIncluded
+      : draft.kind === "catering"
+        ? defaultCateringSelection(draft.fastingPreference)
+        : [];
+    const includedIds = includedSource.filter((id) => allowedIncluded.has(id));
     const quantities: Record<string, number> = {};
     let portions: PortionPicks = {};
     if (draft.kind === "weekly") {
       portions = picksFromLines(draft.lines);
-      if (Object.keys(portions).length === 0) portions = readPortionMemory(draft.fastingPreference);
+      if (!switching && Object.keys(portions).length === 0) portions = readPortionMemory(draft.fastingPreference);
+      portions = Object.fromEntries(Object.entries(portions).filter(([id]) => weeklyDishFits(id, draft.fastingPreference)));
     }
     setPick({
+      kind: draft.kind,
       preference: draft.fastingPreference,
       addonIds: addonIds.filter((id) => !includedIds.includes(id)),
       includedIds,
@@ -128,7 +134,7 @@ export function PackageBuilder() {
       menu,
       pick.addonIds,
       draft.lines,
-      (item) => initialCustomization(item, user?.preferences),
+      (item) => ({ ...initialCustomization(item, user?.preferences), spiceLevel: packageSpice.current }),
       pick.includedIds,
       draft.kind === "weekly" ? pick.quantities : {},
       draft.kind === "weekly" ? pick.portions : null,
@@ -167,14 +173,12 @@ export function PackageBuilder() {
   if (!menu || !pkg) {
     return (
       <Shell>
-        <p className="text-muted-foreground">Loading the standard packages…</p>
+        <p className="text-muted-foreground">Loading the menu…</p>
       </Shell>
     );
   }
 
   const order = draft;
-  const meal = pkg;
-  const servings = servingCount(order);
   const mixed = order.fastingPreference === "mixed";
   const quote = serviceQuote(order, selectedAddons);
   const weeklyIncluded = draft.lines
@@ -197,14 +201,13 @@ export function PackageBuilder() {
   function chooseIncluded(ids: string[]) {
     setPick((current) => {
       if (!current) return current;
-      const next = order.kind === "weekly" ? ids : ids.slice(0, meal.choiceLimit ?? MIXED_INCLUDED_SELECTIONS);
+      const next = ids;
       const addonIds = current.addonIds.filter((id) => !next.includes(id));
       const quantities = { ...current.quantities };
       for (const id of Object.keys(quantities)) {
         if (!next.includes(id)) delete quantities[id];
       }
       for (const id of next) quantities[id] = quantities[id] ?? 1;
-      if (order.fastingPreference === "mixed") writeIncludedMemory(next);
       writeAddonMemory(order.fastingPreference, addonIds);
       return { ...current, includedIds: next, addonIds, quantities };
     });
@@ -283,51 +286,67 @@ export function PackageBuilder() {
 
   const container = draft.kind === "weekly" ? weeklyContainer(draft.durationDays) : null;
   const weeklyMeals = draft.lines.filter((line) => line.source === "included");
-  const needsMeal = draft.kind === "weekly" ? weeklyMeals.length === 0 : mixed && weeklyMeals.length === 0;
-  const servingLabel =
-    draft.kind === "weekly"
-      ? container
-        ? `${container.sizeNote}. Choose how many of each meal.`
-        : ""
-      : `${servings} guests, one serving of the package each`;
+  const needsMeal = draft.kind === "weekly" ? weeklyMeals.length === 0 : draft.lines.length === 0;
+  const extraPerPerson = quote ? quote.addons.reduce((sum, addon) => sum + addon.perPerson, 0) : 0;
+  const selectionChanged = draft.kind === "catering" && (extraPerPerson > 0 || cateringSelectionChanged(draft.fastingPreference, selectedIncluded));
 
   return (
     <Shell>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <PageIntro
           eyebrow={draft.kind === "weekly" ? `${draft.durationDays}-day meal preparation` : `Catering · ${draft.guestCount} guests`}
-          title={draft.kind === "weekly" ? "Choose your meals." : mixed ? "Choose the dishes in the standard price." : "The standard package is already on the order."}
+          title={draft.kind === "weekly" ? "Choose your meals." : "Choose your catering foods."}
           lede={
             draft.kind === "weekly"
-              ? "Nothing is selected until you choose it. One week uses the 24 oz round container. Two weeks uses the 28 oz square container."
-              : mixed
-                ? "Pick fasting and non-fasting meals for the mixed package. That mix stays inside the standard price. Extra meals are the only add-on charge."
-                : "Included dishes do not need to be chosen. Open extra meals only if you want something beyond the package, then set the kitchen’s preferences."
+              ? "Check the foods you want and set how many containers of each. Add-ons are optional. Pickup or delivery comes after the foods."
+              : `Starting at ${money(CATERING_PRICE_PER_PERSON)} per person. The recommended foods are already selected, and you can change them. Extras raise the price.`
           }
         />
-        <Button variant="outline" className="h-10 bg-card px-3" render={<Link href="/order" />}>
-          Edit service
+        <Button variant="outline" className="h-10 bg-card px-3" render={<Link href={`/order?kind=${draft.kind}&table=${draft.fastingPreference}`} />}>
+          {draft.kind === "weekly" ? "Change duration" : "Edit catering"}
         </Button>
       </div>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="grid gap-6">
-          {draft.kind === "weekly" ? (
-            <div className="grid gap-3">
-              <div className="flex flex-wrap gap-2">
-                {([7, 14] as const).map((days) => (
-                  <Button
-                    key={days}
-                    variant={draft.durationDays === days ? "default" : "outline"}
-                    className="h-10 px-3"
-                    onClick={() => setDraft({ ...draft, durationDays: days })}
-                  >
-                    {days === 7 ? "1 Week" : "2 Weeks"}
-                  </Button>
-                ))}
+          <section className="rounded-2xl border border-border bg-card p-6">
+            <MealTypeField
+              kind={draft.kind}
+              preference={draft.fastingPreference}
+              lines={draft.lines}
+              onSelect={selectMealType}
+            />
+          </section>
+          {draft.kind === "weekly" && container ? (
+            <section className="rounded-2xl border border-border bg-card p-6">
+              <h2 className="font-display text-3xl">Your {container.weeks === 1 ? "1 week" : "2 week"} meal selection</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Container: {container.short}</p>
+              <div className="mt-4 max-w-sm">
+                <WeeklyContainer days={draft.durationDays} selected />
               </div>
-              <WeeklyContainer days={draft.durationDays} selected />
-            </div>
+            </section>
+          ) : null}
+          {draft.kind === "catering" ? (
+            <section className="rounded-2xl border border-border bg-card p-6">
+              <h2 className="font-display text-3xl">How many people are you serving?</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Starting at {money(CATERING_PRICE_PER_PERSON)} per person. The total updates when the guest count changes.
+              </p>
+              <div className="mt-4 max-w-xs">
+                <GuestCountField
+                  id="guest-count"
+                  count={draft.guestCount}
+                  min={guestLimits.min}
+                  max={guestLimits.max}
+                  onChange={(guestCount) => setDraft({ ...draft, guestCount })}
+                />
+              </div>
+              {draft.guestCount > 0 ? (
+                <p className="mt-3 text-sm">
+                  {draft.guestCount} × {money(CATERING_PRICE_PER_PERSON)} = {money(CATERING_PRICE_PER_PERSON * draft.guestCount)} starting price
+                </p>
+              ) : null}
+            </section>
           ) : null}
           {draft.kind === "weekly" ? (
             <PortionMenu
@@ -336,28 +355,13 @@ export function PackageBuilder() {
               picks={pick?.portions ?? {}}
               onPicks={choosePortions}
             />
-          ) : mixed ? (
-            <MixedPackagePanel
-              billing="catering"
-              selectedIncludedIds={selectedIncluded}
-              onSelectedIncludedIds={chooseIncluded}
-              quantities={pick?.quantities ?? {}}
-              onQuantity={chooseQuantity}
-              selectedAddonIds={selectedAddons}
-              onSelectedAddonIds={chooseAddons}
-              servingNote={servingLabel}
-            />
           ) : (
-            <PackagePanel
-              pkg={pkg}
-              billing="catering"
-              selectedMealIds={selectedIncluded}
-              onSelectedMealIds={chooseIncluded}
-              quantities={pick?.quantities ?? {}}
-              onQuantity={chooseQuantity}
-              selectedAddonIds={selectedAddons}
-              onSelectedAddonIds={chooseAddons}
-              servingNote={servingLabel}
+            <CateringMenu
+              preference={draft.fastingPreference}
+              includedIds={selectedIncluded}
+              addonIds={selectedAddons}
+              onIncludedIds={chooseIncluded}
+              onAddonIds={chooseAddons}
             />
           )}
 
@@ -409,7 +413,7 @@ export function PackageBuilder() {
                         ? "Add-on"
                         : draft.kind === "weekly"
                           ? `${line.quantity} × ${container?.short ?? "container"}`
-                          : "Included in standard price"}
+                          : "Standard selection"}
                     </span>
                     </span>
                   </span>
@@ -429,47 +433,51 @@ export function PackageBuilder() {
           </p>
           {quote ? (
             <div className="mt-4 grid gap-3">
-              {draft.kind === "catering" ? (
-                <div className="grid gap-2">
-                  <Label htmlFor="guest-count">People</Label>
-                  <GuestCountField
-                    id="guest-count"
-                    count={draft.guestCount}
-                    min={guestLimits.min}
-                    max={guestLimits.max}
-                    onChange={(guestCount) => setDraft({ ...draft, guestCount })}
-                  />
-                </div>
-              ) : null}
               <p className="font-display text-3xl">
                 {quote.count} {quote.countLabel}
               </p>
+              <p className="text-sm text-muted-foreground">Starting at {money(quote.basePer)} per person</p>
               <div className="flex items-baseline justify-between gap-3 text-sm">
-                <span>{mixed ? "Mixed standard package" : "Standard meal package"}</span>
+                <span>Base catering</span>
                 <span className="tabular-nums">
                   {money(quote.basePer)} × {quote.count} = {money(quote.baseTotal)}
                 </span>
               </div>
-              {mixed ? (
-                <ul className="grid gap-1 text-sm">
-                  {draft.lines
-                    .filter((line) => line.source === "included")
-                    .map((line) => (
-                      <li key={line.lineId}>
-                        ✓ {dishLabel(line.itemId)}
-                        {dishSide(line.itemId) ? ` — ${sideLabel(dishSide(line.itemId)!)}` : ""}
-                      </li>
-                    ))}
+              <div>
+                <p className="text-sm">Selected standard foods</p>
+                <ul className="mt-1 grid gap-1 text-sm text-muted-foreground">
+                  {draft.lines.filter((line) => line.source === "included").length === 0 ? (
+                    <li>None selected</li>
+                  ) : (
+                    draft.lines
+                      .filter((line) => line.source === "included")
+                      .map((line) => (
+                        <li key={line.lineId}>
+                          ✓ {dishLabel(line.itemId)}
+                          {dishSide(line.itemId) ? ` — ${sideLabel(dishSide(line.itemId)!)}` : ""}
+                        </li>
+                      ))
+                  )}
                 </ul>
-              ) : null}
+              </div>
               {quote.addons.map((addon) => (
                 <div key={addon.id} className="flex items-baseline justify-between gap-3 text-sm">
-                  <span>{addon.label} add-on</span>
+                  <span>
+                    {addon.label}
+                    <span className="mt-0.5 block text-xs text-muted-foreground">+{money(addon.perPerson)}/person</span>
+                  </span>
                   <span className="tabular-nums">
-                    +{money(addon.perPerson)} × {quote.count} = {money(addon.total)}
+                    {quote.count} × {money(addon.perPerson)} = +{money(addon.total)}
                   </span>
                 </div>
               ))}
+              {selectionChanged ? (
+                <p className="rounded-lg border border-border bg-background px-3 py-2 text-sm leading-6">
+                  {extraPerPerson > 0
+                    ? `Your selection changes the catering price by +${money(extraPerPerson)}/person.`
+                    : `You changed the recommended selections. The starting price stays ${money(CATERING_PRICE_PER_PERSON)} per person.`}
+                </p>
+              ) : null}
               {delivery ? (
                 <div className="flex items-baseline justify-between gap-3 text-sm">
                   <span>Delivery</span>
@@ -482,10 +490,8 @@ export function PackageBuilder() {
                 <span className="text-sm">Estimated total</span>
                 <span className="font-display text-3xl">{money(quote.total + (delivery?.fee ?? 0))}</span>
               </div>
-              {mixed && !draft.lines.some((line) => line.source === "included") ? (
-                <p className="text-xs leading-5 text-muted-foreground">
-                  Choose at least one standard dish. The package price stays the same.
-                </p>
+              {draft.lines.length === 0 ? (
+                <p className="text-xs leading-5 text-muted-foreground">Choose at least one catering food.</p>
               ) : null}
             </div>
           ) : (
@@ -544,7 +550,13 @@ export function PackageBuilder() {
         </aside>
       </div>
 
-      <CustomizeSheet draft={editing} onClose={() => setEditing(null)} onChange={setEditing} onSave={saveLine} />
+      <CustomizeSheet
+        draft={editing}
+        showSchedule={false}
+        onClose={() => setEditing(null)}
+        onChange={setEditing}
+        onSave={saveLine}
+      />
     </Shell>
   );
 }

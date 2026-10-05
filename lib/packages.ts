@@ -1,11 +1,14 @@
-import { foodOffer, isPortionFood, linesFromPortions, picksFromLines, type PortionPicks } from "@/lib/portions";
-import type { Customization, DraftLine, FastingPreference, MenuItem, OrderDraft } from "@/lib/types";
+import { addonOffers, foodOffer, isPortionFood, linesFromPortions, offerGroups, picksFromLines, type PortionPicks } from "@/lib/portions";
+import type { Customization, DraftLine, FastingPreference, MenuItem, OrderDraft, OrderKind } from "@/lib/types";
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
 export const CATERING_PRICE_PER_PERSON = 21;
+
+/** Temporary add-on price per catering guest. Replace this, or a single dish price, when final prices are set. */
+export const CATERING_ADDON_PRICE = 20;
 
 /**
  * Included weekly meals, per day, for a mixed order.
@@ -56,9 +59,9 @@ const FASTING_PACKAGE: MealPackage = {
     { id: "fosolia", label: "Vegetable Side", side: "fasting" },
   ],
   addons: [
-    { id: "kik-alicha", label: "Kik Alicha", side: "fasting", pricePerPerson: 4 },
-    { id: "azifa", label: "Azifa", side: "fasting", pricePerPerson: 3 },
-    { id: "injera", label: "Extra Injera", side: "fasting", pricePerPerson: 2 },
+    { id: "kik-alicha", label: "Kik Alicha", side: "fasting", pricePerPerson: CATERING_ADDON_PRICE },
+    { id: "azifa", label: "Azifa", side: "fasting", pricePerPerson: CATERING_ADDON_PRICE },
+    { id: "injera", label: "Extra Injera", side: "fasting", pricePerPerson: CATERING_ADDON_PRICE },
   ],
 };
 
@@ -74,9 +77,9 @@ const NON_FASTING_PACKAGE: MealPackage = {
     { id: "timatim-salad", label: "Vegetable Side", side: "non_fasting" },
   ],
   addons: [
-    { id: "kitfo", label: "Kitfo", side: "non_fasting", pricePerPerson: 9 },
-    { id: "key-wot", label: "Key Wot", side: "non_fasting", pricePerPerson: 7 },
-    { id: "ayib", label: "Ayib", side: "non_fasting", pricePerPerson: 3 },
+    { id: "kitfo", label: "Kitfo", side: "non_fasting", pricePerPerson: CATERING_ADDON_PRICE },
+    { id: "key-wot", label: "Key Wot", side: "non_fasting", pricePerPerson: CATERING_ADDON_PRICE },
+    { id: "ayib", label: "Ayib", side: "non_fasting", pricePerPerson: CATERING_ADDON_PRICE },
   ],
 };
 
@@ -120,21 +123,21 @@ export const TABLE_OPTIONS: {
     icons: ["shiro-wot", "gomen"],
     title: "Fasting",
     detail: "Traditional Ethiopian fasting meals.",
-    note: "Standard package included",
+    note: "Recommended foods start selected",
   },
   {
     id: "non_fasting",
     icons: ["doro-wot", "awaze-tibs"],
     title: "Non-Fasting",
     detail: "Traditional Ethiopian non-fasting meals.",
-    note: "Standard package included",
+    note: "Recommended foods start selected",
   },
   {
     id: "mixed",
     icons: ["shiro-wot", "awaze-tibs"],
     title: "Mixed",
     detail: "Combine fasting and non-fasting meals based on your preferences.",
-    note: "Customize your standard selections",
+    note: "Choose from both lists",
   },
 ];
 
@@ -278,12 +281,108 @@ export interface ServiceQuote {
   total: number;
 }
 
+export function defaultCateringSelection(preference: FastingPreference): string[] {
+  return packageFor(preference).included.map((dish) => dish.id);
+}
+
+const EMPTY_CUSTOMIZATION: Customization = {
+  spiceLevel: "none",
+  allergens: [],
+  excludedIngredients: [],
+  preferredIngredients: [],
+  dietary: [],
+  fastingStyle: null,
+  choice: null,
+  sauces: [],
+  extras: [],
+  notes: "",
+};
+
+export function weeklyDishFits(id: string, preference: FastingPreference): boolean {
+  if (offerGroups(preference).some((group) => group.offers.some((offer) => offer.id === id))) return true;
+  return addonOffers(preference).some((offer) => offer.id === id);
+}
+
+export function cateringDishFits(id: string, preference: FastingPreference): boolean {
+  const pkg = packageFor(preference);
+  return pkg.included.some((dish) => dish.id === id) || pkg.addons.some((dish) => dish.id === id);
+}
+
+function dishFits(id: string, preference: FastingPreference, kind: OrderKind): boolean {
+  return kind === "weekly" ? weeklyDishFits(id, preference) : cateringDishFits(id, preference);
+}
+
+/** True when the new meal type would drop a food the customer already has. */
+export function mealTypeDropsLines(lines: DraftLine[], next: FastingPreference, kind: OrderKind): boolean {
+  return lines.some((line) => !dishFits(line.itemId, next, kind));
+}
+
+/**
+ * Keep foods that belong to the next meal type.
+ * Switching between fasting and non-fasting catering adds that side's recommended foods
+ * when they were not part of the previous list. Mixed keeps the current foods and does not add the other side.
+ */
+export function linesForMealType(
+  lines: DraftLine[],
+  previous: FastingPreference,
+  next: FastingPreference,
+  kind: OrderKind,
+  guestCount = 1,
+): DraftLine[] {
+  const kept = lines.filter((line) => dishFits(line.itemId, next, kind));
+  if (kind !== "catering" || next === "mixed" || next === previous) return kept;
+  const previousIncluded = new Set(packageFor(previous).included.map((dish) => dish.id));
+  const have = new Set(kept.map((line) => line.itemId));
+  const added: DraftLine[] = defaultCateringSelection(next)
+    .filter((id) => !have.has(id) && !previousIncluded.has(id))
+    .map((id) => ({
+      lineId: `pkg-${id}`,
+      itemId: id,
+      quantity: Math.max(1, guestCount || 1),
+      dayIndex: null,
+      mealSlot: null,
+      customization: EMPTY_CUSTOMIZATION,
+      source: "included",
+      portionId: null,
+    }));
+  return [...kept, ...added];
+}
+
+export function cateringFoodSections(preference: FastingPreference): { side: "fasting" | "non_fasting"; title: string; dishes: PackageDish[] }[] {
+  if (preference === "non_fasting") {
+    return [{ side: "non_fasting", title: "Non-Fasting", dishes: NON_FASTING_PACKAGE.included }];
+  }
+  if (preference === "fasting") {
+    return [{ side: "fasting", title: "Fasting", dishes: FASTING_PACKAGE.included }];
+  }
+  const fastingIds = new Set(FASTING_PACKAGE.included.map((dish) => dish.id));
+  return [
+    { side: "fasting", title: "Fasting", dishes: FASTING_PACKAGE.included },
+    {
+      side: "non_fasting",
+      title: "Non-Fasting",
+      dishes: NON_FASTING_PACKAGE.included.filter((dish) => !fastingIds.has(dish.id)),
+    },
+  ];
+}
+
+export function cateringAddons(preference: FastingPreference): PackageDish[] {
+  return packageFor(preference).addons;
+}
+
+export function cateringSelectionChanged(preference: FastingPreference, includedIds: string[]): boolean {
+  const defaults = defaultCateringSelection(preference);
+  if (includedIds.length !== defaults.length) return true;
+  const chosen = new Set(includedIds);
+  return defaults.some((id) => !chosen.has(id));
+}
+
 export function serviceQuote(draft: Pick<OrderDraft, "kind" | "guestCount" | "durationDays" | "fastingPreference">, addonIds: string[]): ServiceQuote | null {
   if (draft.kind !== "catering") return null;
   const count = Number.isInteger(draft.guestCount) && draft.guestCount > 0 ? draft.guestCount : 0;
   const basePer = CATERING_PRICE_PER_PERSON;
   const chosen = new Set(addonIds);
-  const catalog = draft.fastingPreference === "mixed" ? mixedAddonChoices([]) : packageFor(draft.fastingPreference).addons;
+  const catalog = packageFor(draft.fastingPreference).addons;
   const addons = catalog
     .filter((dish) => chosen.has(dish.id))
     .map((dish) => {
@@ -307,15 +406,9 @@ export function cateringUnitPrice(
   line: Pick<DraftLine, "itemId" | "source">,
   lines: Pick<DraftLine, "itemId" | "source">[] = [],
 ): number {
-  const pkg = packageFor(preference);
-  if (line.source === "included") {
-    const first = pkg.choiceLimit
-      ? lines.find((entry) => entry.source === "included")?.itemId
-      : pkg.included[0]?.id;
-    return line.itemId === first ? CATERING_PRICE_PER_PERSON : 0;
-  }
-  if (line.source === "addon") return addonUnitPrice(preference, line.itemId);
-  return 0;
+  const extra = line.source === "addon" ? addonUnitPrice(preference, line.itemId) : 0;
+  const carrier = lines.find((entry) => entry.source !== "addon")?.itemId ?? lines[0]?.itemId;
+  return (line.itemId === carrier ? CATERING_PRICE_PER_PERSON : 0) + extra;
 }
 
 /** Weekly meals are priced per container. Add-ons use their own rate. The container size comes from the 1-week or 2-week choice. */
@@ -418,22 +511,12 @@ export function buildPackageLines(
   const chosen = new Set(addonIds);
   const previousById = new Map(previous.map((line) => [line.itemId, line]));
   const uniqueIncluded = includedIds.filter((id, index) => includedIds.indexOf(id) === index);
-  const includedDishes = weekly
-    ? uniqueIncluded.flatMap((id) => {
-        const dish = pkg.included.find((entry) => entry.id === id);
-        return dish ? [dish] : [];
-      })
-    : pkg.choiceLimit
-      ? uniqueIncluded.slice(0, pkg.choiceLimit).flatMap((id) => {
-          const dish = pkg.included.find((entry) => entry.id === id);
-          return dish ? [dish] : [];
-        })
-      : pkg.included;
+  const includedDishes = uniqueIncluded.flatMap((id) => {
+    const dish = pkg.included.find((entry) => entry.id === id);
+    return dish ? [dish] : [];
+  });
   const includedSet = new Set(includedDishes.map((dish) => dish.id));
-  const addonDishes = [
-    ...(!weekly && pkg.choiceLimit ? pkg.included.filter((dish) => chosen.has(dish.id) && !includedSet.has(dish.id)) : []),
-    ...pkg.addons.filter((dish) => chosen.has(dish.id) && !includedSet.has(dish.id)),
-  ];
+  const addonDishes = pkg.addons.filter((dish) => chosen.has(dish.id) && !includedSet.has(dish.id));
   const rows = [
     ...includedDishes.map((dish) => ({ ...dish, source: "included" as const })),
     ...addonDishes.map((dish) => ({ ...dish, source: "addon" as const })),

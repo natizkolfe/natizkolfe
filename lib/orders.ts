@@ -152,12 +152,11 @@ export function sanitizeCustomization(item: MenuItem, input: Partial<Customizati
   }
 
   let spiceLevel: SpiceLevel | null = null;
-  if (item.allowSpice) {
-    const requested = source.spiceLevel ?? item.defaultSpice;
-    if (requested && !item.spiceLevels.includes(requested)) {
+  if (item.allowSpice && source.spiceLevel) {
+    if (!item.spiceLevels.includes(source.spiceLevel) || !SPICES.includes(source.spiceLevel)) {
       throw new OrderError(`${item.name} cannot be prepared at that spice level.`);
     }
-    spiceLevel = requested && SPICES.includes(requested) ? requested : item.defaultSpice;
+    spiceLevel = source.spiceLevel;
   }
 
   let fastingStyle: Customization["fastingStyle"] = null;
@@ -342,13 +341,6 @@ export function buildLines(menu: MenuItem[], draft: OrderDraft): OrderLine[] {
   }
   if (draft.kind === "weekly" && !draft.lines.some((entry) => entry.source === "included")) {
     throw new OrderError("Choose at least one meal.");
-  }
-  if (
-    draft.kind === "catering" &&
-    draft.fastingPreference === "mixed" &&
-    !draft.lines.some((entry) => entry.source === "included")
-  ) {
-    throw new OrderError("Choose at least one standard dish for the mixed package. The package price stays the same.");
   }
   return draft.lines.map((line) => {
     const item = menu.find((entry) => entry.id === line.itemId);

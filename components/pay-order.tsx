@@ -80,7 +80,7 @@ export function PayOrder() {
           <p className="mb-4 font-display text-4xl">{charge ? money(charge.total) : "…"}</p>
           {charge?.delivery ? (
             <p className="mb-4 text-sm text-muted-foreground">
-              Includes a {money(charge.delivery)} delivery add-on. The package price does not include it.
+              Includes a {money(charge.delivery)} delivery add-on. The order price does not include it.
             </p>
           ) : null}
           <PaymentForm

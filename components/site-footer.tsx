@@ -1,5 +1,11 @@
 import Link from "next/link";
 
+const ORDER_LINKS = [
+  { href: "/menu", label: "Packages" },
+  { href: "/order?kind=weekly", label: "Weekly meal preparation" },
+  { href: "/order?kind=catering", label: "Catering by guest count" },
+];
+
 export function SiteFooter() {
   return (
     <footer className="mt-16 border-t border-border">
@@ -21,15 +27,11 @@ export function SiteFooter() {
         <div className="text-sm leading-6">
           <p className="font-medium">Order</p>
           <div className="grid text-muted-foreground">
-            <Link href="/menu" className="hover:text-foreground">
-              Packages
-            </Link>
-            <Link href="/order?kind=weekly" className="hover:text-foreground">
-              Weekly meal preparation
-            </Link>
-            <Link href="/order?kind=catering" className="hover:text-foreground">
-              Catering by guest count
-            </Link>
+            {ORDER_LINKS.map((link) => (
+              <Link key={link.href} href={link.href} className="hover:text-foreground">
+                {link.label}
+              </Link>
+            ))}
           </div>
         </div>
       </div>

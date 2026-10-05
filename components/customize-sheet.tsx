@@ -25,11 +25,14 @@ export function CustomizeSheet({
   onClose,
   onChange,
   onSave,
+  showSchedule = true,
 }: {
   draft: CustomizeDraft | null;
   onClose: () => void;
   onChange: (next: CustomizeDraft) => void;
   onSave: () => void;
+  /** Day, lunch or dinner, and servings. The package page sets quantity on the meal itself. */
+  showSchedule?: boolean;
 }) {
   const item = draft?.item;
   return (
@@ -56,7 +59,7 @@ export function CustomizeSheet({
               <p className="text-sm leading-6 text-muted-foreground">{item.description}</p>
               {item.kitchenNote ? <p className="text-sm leading-6">{item.kitchenNote}</p> : null}
 
-              {draft.kind === "weekly" ? (
+              {showSchedule && draft.kind === "weekly" ? (
                 <div className="grid gap-3">
                   <div className="grid gap-2">
                     <Label>Day</Label>
@@ -92,19 +95,22 @@ export function CustomizeSheet({
                     ))}
                   </div>
                 </div>
-              ) : (
+              ) : null}
+              {showSchedule && draft.kind !== "weekly" ? (
                 <p className="text-sm text-muted-foreground">
                   Quantity is the number of servings. Mains usually match the guest count. Injera is often two per person.
                 </p>
-              )}
+              ) : null}
 
-              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-                <span className="text-sm font-medium">Servings</span>
-                <Stepper
-                  value={draft.quantity}
-                  onChange={(quantity) => onChange({ ...draft, quantity })}
-                />
-              </div>
+              {showSchedule ? (
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                  <span className="text-sm font-medium">Servings</span>
+                  <Stepper
+                    value={draft.quantity}
+                    onChange={(quantity) => onChange({ ...draft, quantity })}
+                  />
+                </div>
+              ) : null}
 
               <div className="grid gap-2">
                 <Label htmlFor="kitchen-notes">Special instructions for the kitchen</Label>
@@ -145,7 +151,7 @@ export function CustomizeSheet({
               {item.allowSpice ? (
                 <ChoiceRow
                   label="Spice"
-                  value={draft.customization.spiceLevel ?? item.defaultSpice ?? item.spiceLevels[0]}
+                  value={draft.customization.spiceLevel ?? ""}
                   options={item.spiceLevels.map((level) => [level, SPICE_LABEL[level]])}
                   onChange={(value) =>
                     onChange({
