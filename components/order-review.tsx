@@ -11,10 +11,12 @@ import { addDays, formatDate, formatTime } from "@/lib/dates";
 import { FASTING_LABEL, FULFILLMENT_LABEL, money } from "@/lib/format";
 import { DishPhoto } from "@/components/dish-photo";
 import { FulfillmentChoice } from "@/components/fulfillment-choice";
+import { PromoCodeField } from "@/components/promo-code-field";
 import { WeeklyContainer } from "@/components/weekly-container";
 import { addonUnitPrice, dishLabel, dishSide, serviceQuote, sideLabel, weeklyContainer } from "@/lib/packages";
 import { containerForDays, foodOffer, weeklyUnitPrice } from "@/lib/portions";
 import { describeCustomization, lineCountLabel, scheduleProblems, unitPrice } from "@/lib/orders";
+import { priceWithPromo } from "@/lib/promo";
 import type { DraftLine, MenuItem, OrderDraft, PublicSettings } from "@/lib/types";
 
 export function OrderReview() {
@@ -97,6 +99,8 @@ export function OrderReview() {
             : unitPrice(row.item, row.line.customization);
         return sum + perDay * row.line.quantity;
       }, 0);
+  const deliveryFee = draft.fulfillment === "delivery" ? (draft.delivery?.fee ?? 0) : 0;
+  const priced = priceWithPromo(subtotal, deliveryFee, draft.promoCode ? draft.promoPercent : null);
 
   return (
     <Shell>
@@ -264,7 +268,28 @@ export function OrderReview() {
           <p className="text-sm text-muted-foreground">
             {quote ? "Estimated total" : "Total due before confirmation"}
           </p>
-          <p className="mt-1 font-display text-4xl">{money(subtotal + (draft.fulfillment === "delivery" ? draft.delivery?.fee ?? 0 : 0))}</p>
+          <p className="mt-1 font-display text-4xl">{money(priced.total)}</p>
+          {priced.discount > 0 ? (
+            <dl className="mt-3 grid gap-1 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt>Food & add-ons</dt>
+                <dd className="tabular-nums">{money(priced.food)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Promo {draft.promoCode}</dt>
+                <dd className="tabular-nums">
+                  {priced.percent}% · −{money(priced.discount)}
+                </dd>
+              </div>
+              {priced.delivery ? (
+                <div className="flex justify-between gap-3">
+                  <dt>Delivery</dt>
+                  <dd className="tabular-nums">{money(priced.delivery)}</dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
+          <PromoCodeField draft={draft} onChange={setDraft} />
           {draft.fulfillment === "delivery" && draft.delivery ? (
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               Includes delivery, {draft.delivery.miles} miles × {money(draft.delivery.ratePerMile)} = {money(draft.delivery.fee)}.

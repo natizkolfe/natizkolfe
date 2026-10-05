@@ -99,6 +99,10 @@ export interface OrderDraft {
   /** Set only after the customer accepts a calculated delivery fee. */
   delivery: DeliveryQuote | null;
   lines: DraftLine[];
+  /** Code the customer applied. The server ignores any discount amount sent with the draft. */
+  promoCode: string | null;
+  /** Percent returned when the code was checked. Display only; the promo record is authoritative. */
+  promoPercent: number | null;
 }
 
 export interface OrderLine {
@@ -186,8 +190,13 @@ export interface OrderRecord {
   customerPhone: string;
   customerEmail: string;
   lines: OrderLine[];
+  /** Food and add-ons before the promo discount and before delivery. */
   subtotal: number;
+  /** Amount charged: food and add-ons, minus the stored promo discount, plus delivery. */
   total: number;
+  promoCode: string | null;
+  promoPercent: number | null;
+  promoDiscount: number | null;
   createdAt: string;
   updatedAt: string;
   paidAt: string | null;
@@ -274,10 +283,28 @@ export interface PublicSettings extends Settings {
   earliestCateringDate: string;
 }
 
+export type PromoStatus = "available" | "used" | "disabled";
+
+export interface PromoCode {
+  id: string;
+  code: string;
+  discountPercent: number;
+  status: PromoStatus;
+  forName: string;
+  note: string;
+  createdAt: string;
+  usedAt: string | null;
+  usedByUserId: string | null;
+  usedByName: string | null;
+  orderId: string | null;
+  orderNumber: string | null;
+}
+
 export interface Database {
   users: UserRecord[];
   sessions: SessionRecord[];
   orders: OrderRecord[];
+  promoCodes: PromoCode[];
   menu: MenuItem[];
   settings: Settings;
   seq: number;

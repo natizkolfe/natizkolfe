@@ -23,6 +23,7 @@ const NAV = [
   { href: "/admin/menu", label: "Menu" },
   { href: "/admin/settings", label: "Capacity" },
   { href: "/admin/customers", label: "Customers" },
+  { href: "/admin/promo", label: "Promo codes" },
 ];
 
 export function KitchenFrame({ children }: { children: React.ReactNode }) {

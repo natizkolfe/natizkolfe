@@ -9,10 +9,12 @@ const DRAFT_KEY = "gebeta-draft-v1";
 
 function normalizeDraft(draft: OrderDraft): OrderDraft {
   const delivery = draft.delivery && typeof draft.delivery.fee === "number" ? draft.delivery : null;
+  const promoCode = typeof draft.promoCode === "string" && draft.promoCode.trim() ? draft.promoCode.trim().toUpperCase() : null;
+  const promoPercent = promoCode && typeof draft.promoPercent === "number" ? draft.promoPercent : null;
   if (draft.fulfillment === "delivery" && !delivery) {
-    return { ...draft, fulfillment: "pickup", delivery: null };
+    return { ...draft, fulfillment: "pickup", delivery: null, promoCode, promoPercent };
   }
-  return { ...draft, delivery };
+  return { ...draft, delivery, promoCode, promoPercent };
 }
 
 type AuthValue = {

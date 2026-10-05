@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/client-api";
 import { money } from "@/lib/format";
 import { customerTotal } from "@/lib/orders";
+import { priceWithPromo } from "@/lib/promo";
 import type { MenuItem, OrderRecord } from "@/lib/types";
 
 export function PayOrder() {
@@ -56,6 +57,7 @@ export function PayOrder() {
   }
 
   const charge = menu ? customerTotal(menu, draft) : null;
+  const priced = charge ? priceWithPromo(charge.food, charge.delivery, draft.promoCode ? draft.promoPercent : null) : null;
 
   async function prepare() {
     if (!draft) throw new Error("The draft is missing.");
@@ -77,10 +79,26 @@ export function PayOrder() {
       {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
         <section className="rounded-xl border border-border bg-card p-5">
-          <p className="mb-4 font-display text-4xl">{charge ? money(charge.total) : "…"}</p>
-          {charge?.delivery ? (
+          <p className="mb-4 font-display text-4xl">{priced ? money(priced.total) : "…"}</p>
+          {priced && priced.discount > 0 ? (
+            <dl className="mb-4 grid gap-1 text-sm">
+              <div className="flex justify-between gap-3">
+                <dt>Subtotal</dt>
+                <dd className="tabular-nums">{money(priced.food)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Promo discount ({priced.percent}%)</dt>
+                <dd className="tabular-nums">−{money(priced.discount)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt>Delivery</dt>
+                <dd className="tabular-nums">{money(priced.delivery)}</dd>
+              </div>
+            </dl>
+          ) : null}
+          {priced?.delivery && !priced.discount ? (
             <p className="mb-4 text-sm text-muted-foreground">
-              Includes a {money(charge.delivery)} delivery add-on. The order price does not include it.
+              Includes a {money(priced.delivery)} delivery add-on. The order price does not include it.
             </p>
           ) : null}
           <PaymentForm

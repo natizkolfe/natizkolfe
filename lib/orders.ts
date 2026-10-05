@@ -10,6 +10,7 @@ import {
   thankYouNotice,
 } from "@/lib/notices";
 import { addonUnitPrice, buildPackageLines, cateringUnitPrice, serviceQuote, weeklyLineUnit } from "@/lib/packages";
+import { claimPromo, dropPromo, findPromo, promoDiscountAmount, promoProblem } from "@/lib/promo";
 import { containerForDays, foodOffer, weeklyUnitPrice } from "@/lib/portions";
 import { FASTING_LABEL, FULFILLMENT_LABEL, KIND_LABEL, SPICE_LABEL } from "@/lib/format";
 import type {
@@ -120,6 +121,8 @@ export function defaultDraft(settings: PublicSettings, kind: OrderDraft["kind"] 
     address: "",
     delivery: null,
     lines: [],
+    promoCode: null,
+    promoPercent: null,
   };
 }
 
@@ -450,6 +453,18 @@ export function createOrder(db: Database, user: UserRecord, draft: OrderDraft): 
   const now = new Date().toISOString();
   const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.total, 0));
   const deliveryFee = draft.fulfillment === "delivery" ? roundMoney(draft.delivery?.fee ?? 0) : 0;
+  const requestedCode = typeof draft.promoCode === "string" ? draft.promoCode : "";
+  let promoCode: string | null = null;
+  let promoPercent: number | null = null;
+  let promoDiscount: number | null = null;
+  if (requestedCode.trim()) {
+    const promo = findPromo(db, requestedCode);
+    const problem = promoProblem(promo);
+    if (problem || !promo) throw new OrderError(problem ?? "This promo code is invalid. Please check the code and try again.");
+    promoCode = promo.code;
+    promoPercent = promo.discountPercent;
+    promoDiscount = promoDiscountAmount(subtotal, promo.discountPercent);
+  }
   db.seq += 1;
   const order: OrderRecord = {
     id: `ord_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
@@ -473,7 +488,10 @@ export function createOrder(db: Database, user: UserRecord, draft: OrderDraft): 
     customerEmail: user.email,
     lines,
     subtotal,
-    total: roundMoney(subtotal + deliveryFee),
+    total: roundMoney(subtotal - (promoDiscount ?? 0) + deliveryFee),
+    promoCode,
+    promoPercent,
+    promoDiscount,
     createdAt: now,
     updatedAt: now,
     paidAt: null,
@@ -565,12 +583,29 @@ export function payOrder(
   const draft = draftFromOrder(order);
   validateDraft(db, draft, order.id);
 
+  if (order.promoCode) {
+    const problem = promoProblem(findPromo(db, order.promoCode));
+    if (problem) {
+      dropPromo(order);
+      const now = new Date().toISOString();
+      order.attempts.push({ at: now, success: false, message: problem });
+      order.updatedAt = now;
+      return { ok: false, message: problem };
+    }
+  }
+
   const decision = cardDecision(cardNumber);
   const now = new Date().toISOString();
   order.attempts.push({ at: now, success: decision.ok, message: decision.message });
   order.updatedAt = now;
   if (!decision.ok) {
     return decision;
+  }
+  const claimed = claimPromo(db, order, now);
+  if (claimed) {
+    dropPromo(order);
+    order.attempts[order.attempts.length - 1] = { at: now, success: false, message: claimed };
+    return { ok: false, message: claimed };
   }
   order.status = "confirmed";
   order.paidAt = now;
@@ -601,6 +636,8 @@ export function draftFromOrder(order: OrderRecord): OrderDraft {
     eventDate: order.eventDate ?? "",
     eventTime: order.eventTime ?? "",
     address: order.address,
+    promoCode: null,
+    promoPercent: null,
     delivery:
       order.fulfillment === "delivery" && typeof order.deliveryFee === "number"
         ? {
@@ -933,7 +970,8 @@ export function reviseOrder(
   if (changes.length === 0) throw new OrderError("Nothing on the order changed.");
   const subtotal = roundMoney(lines.reduce((sum, line) => sum + line.total, 0));
   const delivery = order.fulfillment === "delivery" ? roundMoney(order.deliveryFee ?? 0) : 0;
-  const total = roundMoney(subtotal + delivery);
+  const discount = order.promoPercent ? promoDiscountAmount(subtotal, order.promoPercent) : 0;
+  const total = roundMoney(subtotal - discount + delivery);
   const due = roundMoney(Math.max(0, total - order.total));
   if (input.preview || due > 0) {
     if (input.preview || !input.cardNumber) {
@@ -967,6 +1005,7 @@ function applyRevision(order: OrderRecord, lines: OrderLine[], subtotal: number,
   order.lines = lines;
   order.subtotal = subtotal;
   order.total = total;
+  if (order.promoPercent) order.promoDiscount = promoDiscountAmount(subtotal, order.promoPercent);
   order.updatedAt = now;
   order.checks = buildChecks(order).map((check) => ({ ...check, done: previous.get(check.id) ?? false }));
   const revision: OrderRevision = { at: now, summary: changes, acknowledgedAt: null };

@@ -303,6 +303,12 @@ export function OrderDetail({ orderId }: { orderId: string }) {
                 </li>
               ))}
             </ul>
+            {order.promoCode && order.promoDiscount ? (
+              <div className="mt-4 flex justify-between gap-3 border-t border-border pt-4">
+                <p className="font-medium">Promo discount ({order.promoPercent}%)</p>
+                <p className="text-sm tabular-nums">−{money(order.promoDiscount)}</p>
+              </div>
+            ) : null}
             {typeof order.deliveryFee === "number" ? (
               <div className="mt-4 border-t border-border pt-4">
                 <div className="flex justify-between gap-3">
@@ -346,6 +352,26 @@ export function OrderDetail({ orderId }: { orderId: string }) {
           <section className="rounded-xl border border-border bg-card p-5">
             <p className="text-sm text-muted-foreground">Total {order.paidAt ? "paid" : "due"}</p>
             <p className="font-display text-4xl">{money(order.total)}</p>
+            {order.promoCode && order.promoDiscount ? (
+              <dl className="mt-4 grid gap-1 text-sm">
+                <div className="flex justify-between gap-3">
+                  <dt>Subtotal</dt>
+                  <dd className="tabular-nums">{money(order.subtotal)}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt>Promo discount ({order.promoPercent}%)</dt>
+                  <dd className="tabular-nums">−{money(order.promoDiscount)}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt>Delivery</dt>
+                  <dd className="tabular-nums">{money(order.deliveryFee ?? 0)}</dd>
+                </div>
+                <div className="flex justify-between gap-3 font-medium">
+                  <dt>Total {order.paidAt ? "paid" : "due"}</dt>
+                  <dd className="tabular-nums">{money(order.total)}</dd>
+                </div>
+              </dl>
+            ) : null}
             <dl className="mt-4 grid gap-2 text-sm">
               <Row label="Placed" value={formatWhen(order.createdAt)} />
               <Row label="Type" value={KIND_LABEL[order.kind]} />

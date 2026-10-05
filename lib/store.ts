@@ -30,6 +30,7 @@ function seed(): Database {
     users: [],
     sessions: [],
     orders: [],
+    promoCodes: [],
     menu: seedMenu(),
     settings: defaultSettings(),
     seq: 1047,
@@ -49,12 +50,16 @@ function read(): Database {
     }
     if (!parsed.settings) parsed.settings = defaultSettings();
     parsed.settings = { ...defaultSettings(), ...parsed.settings };
+    parsed.promoCodes ??= [];
     for (const order of parsed.orders ?? []) {
       order.checks ??= [];
       order.notices ??= [];
       order.revisions ??= [];
       order.feedback ??= null;
       order.completedAt ??= null;
+      order.promoCode ??= null;
+      order.promoPercent ??= null;
+      order.promoDiscount ??= null;
       for (const line of order.lines ?? []) {
         line.source ??= "included";
       }

@@ -113,6 +113,12 @@ export function confirmationNotice(order: OrderRecord, at: string): OrderNotice 
     "Order Total",
     `Food Package: ${money(parts.food)}`,
     `Add-Ons: ${money(parts.addons)}`,
+    ...(order.promoCode && order.promoDiscount
+      ? [
+          `Subtotal: ${money(order.subtotal)}`,
+          `Promo Discount (${order.promoPercent}%): −${money(order.promoDiscount)}`,
+        ]
+      : []),
     `Delivery: ${money(parts.delivery)}`,
     "",
     `Total Paid: ${money(order.total)}`,

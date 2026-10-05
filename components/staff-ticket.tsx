@@ -225,6 +225,12 @@ export function StaffTicket({ orderId }: { orderId: string }) {
             <Fact label="Food package" value={money(parts.food)} />
             <Fact label="Add-ons" value={money(parts.addons)} />
             <Fact label="Delivery fee" value={money(parts.delivery)} />
+            {order.promoCode && order.promoDiscount ? (
+              <Fact
+                label={`Promo ${order.promoCode}`}
+                value={`${order.promoPercent}% · −${money(order.promoDiscount)}`}
+              />
+            ) : null}
             <Fact label="Total paid" value={money(order.total)} />
             {order.paymentLast4 ? <Fact label="Card" value={`Ending ${order.paymentLast4}`} /> : null}
           </Section>
