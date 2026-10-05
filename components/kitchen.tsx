@@ -78,9 +78,6 @@ export function KitchenFrame({ children }: { children: React.ReactNode }) {
           <Button type="submit" className="h-11" disabled={pending}>
             {pending ? "Checking…" : "Enter"}
           </Button>
-          <p className="text-xs leading-5 text-muted-foreground">
-            The demo password is <span className="font-medium text-foreground">gebeta-staff</span> unless the server was given another one.
-          </p>
         </form>
       </Shell>
     );

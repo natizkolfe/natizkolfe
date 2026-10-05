@@ -36,16 +36,21 @@ export function publicUser(user: UserRecord): PublicUser {
   };
 }
 
-function staffPassword(): string {
-  return process.env.ADMIN_PASSWORD || "gebeta-staff";
+function configuredAdminPassword(): string | null {
+  const value = process.env.ADMIN_PASSWORD;
+  if (typeof value !== "string" || value.length === 0) return null;
+  return value;
 }
 
 export function checkStaffPassword(password: string): boolean {
-  const expected = staffPassword();
-  const a = Buffer.from(password);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  const expected = configuredAdminPassword();
+  if (!expected) {
+    console.error("ADMIN_PASSWORD is not configured.");
+    return false;
+  }
+  const left = createHash("sha256").update(password, "utf8").digest();
+  const right = createHash("sha256").update(expected, "utf8").digest();
+  return timingSafeEqual(left, right);
 }
 
 async function setCookie(name: string, token: string) {
