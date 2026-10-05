@@ -70,7 +70,7 @@ export function SiteHeader() {
   const kitchenActive = pathname === "/admin" || pathname.startsWith("/admin/");
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/90 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-border/80 bg-background/90 backdrop-blur-md print:hidden">
       <div className="mx-auto flex h-20 w-full max-w-6xl items-center gap-4 px-4 sm:px-6">
         <Link href="/" className="flex shrink-0 items-center">
           <img src="/gebeta-logo.png" alt="Gebeta" className="h-16 w-auto rounded-xl" />

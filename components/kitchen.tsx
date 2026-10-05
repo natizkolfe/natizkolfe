@@ -24,6 +24,7 @@ const NAV = [
   { href: "/admin/settings", label: "Capacity" },
   { href: "/admin/customers", label: "Customers" },
   { href: "/admin/promo", label: "Promo codes" },
+  { href: "/admin/care", label: "Food care" },
 ];
 
 export function KitchenFrame({ children }: { children: React.ReactNode }) {
@@ -87,7 +88,7 @@ export function KitchenFrame({ children }: { children: React.ReactNode }) {
 
   return (
     <Shell>
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-3 print:hidden">
         <p className="font-display text-3xl">Kitchen</p>
         <Button
           variant="outline"
@@ -100,8 +101,8 @@ export function KitchenFrame({ children }: { children: React.ReactNode }) {
           Lock the kitchen
         </Button>
       </div>
-      <div className="grid gap-8 md:grid-cols-[11rem_minmax(0,1fr)]">
-        <nav className="flex gap-2 overflow-x-auto md:grid md:h-fit">
+      <div className="grid gap-8 md:grid-cols-[11rem_minmax(0,1fr)] print:block">
+        <nav className="flex gap-2 overflow-x-auto md:grid md:h-fit print:hidden">
           {NAV.map((link) => (
             <Link
               key={link.href}

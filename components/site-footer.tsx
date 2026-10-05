@@ -8,7 +8,7 @@ const ORDER_LINKS = [
 
 export function SiteFooter() {
   return (
-    <footer className="mt-16 border-t border-border">
+    <footer className="mt-16 border-t border-border print:hidden">
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-3">
         <div>
           <p className="font-display text-2xl">Gebeta</p>

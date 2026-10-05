@@ -10,6 +10,7 @@ import {
   thankYouNotice,
 } from "@/lib/notices";
 import { addonUnitPrice, buildPackageLines, cateringUnitPrice, serviceQuote, weeklyLineUnit } from "@/lib/packages";
+import { captureCare, newCareToken } from "@/lib/care";
 import { claimPromo, dropPromo, findPromo, promoDiscountAmount, promoProblem } from "@/lib/promo";
 import { containerForDays, foodOffer, weeklyUnitPrice } from "@/lib/portions";
 import { FASTING_LABEL, FULFILLMENT_LABEL, KIND_LABEL, SPICE_LABEL } from "@/lib/format";
@@ -492,6 +493,8 @@ export function createOrder(db: Database, user: UserRecord, draft: OrderDraft): 
     promoCode,
     promoPercent,
     promoDiscount,
+    careToken: newCareToken(),
+    care: null,
     createdAt: now,
     updatedAt: now,
     paidAt: null,
@@ -612,6 +615,7 @@ export function payOrder(
   order.paymentLast4 = decision.last4;
   order.verificationCode = order.number;
   order.checks = buildChecks(order);
+  captureCare(db, order, now);
   order.notices.push(staffNewOrderNotice(order, now), confirmationNotice(order, now));
   order.statusHistory.push({
     status: "confirmed",
@@ -996,6 +1000,7 @@ export function reviseOrder(
     order.attempts.push({ at: now, success: true, message: `Additional ${moneySafe(due)} approved.` });
   }
   applyRevision(order, lines, subtotal, total, changes, due);
+  if (order.paidAt) captureCare(db, order);
   return { preview: false, due, total, changes, order };
 }
 

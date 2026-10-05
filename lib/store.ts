@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { seedCareInstructions } from "@/lib/care-seed";
 import { seedMenu } from "@/lib/menu-seed";
 import type { Database, Settings } from "@/lib/types";
 
@@ -31,6 +32,7 @@ function seed(): Database {
     sessions: [],
     orders: [],
     promoCodes: [],
+    careInstructions: seedCareInstructions(),
     menu: seedMenu(),
     settings: defaultSettings(),
     seq: 1047,
@@ -51,6 +53,7 @@ function read(): Database {
     if (!parsed.settings) parsed.settings = defaultSettings();
     parsed.settings = { ...defaultSettings(), ...parsed.settings };
     parsed.promoCodes ??= [];
+    parsed.careInstructions ??= seedCareInstructions();
     for (const order of parsed.orders ?? []) {
       order.checks ??= [];
       order.notices ??= [];
@@ -60,6 +63,8 @@ function read(): Database {
       order.promoCode ??= null;
       order.promoPercent ??= null;
       order.promoDiscount ??= null;
+      order.careToken ??= null;
+      order.care ??= null;
       for (const line of order.lines ?? []) {
         line.source ??= "included";
       }

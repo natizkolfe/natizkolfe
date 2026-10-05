@@ -123,7 +123,12 @@ export function StaffTicket({ orderId }: { orderId: string }) {
           Payment has not cleared. Do not prepare this order.
         </p>
       ) : (
-        <p className="text-sm font-medium text-gomen">Payment status: PAID</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-medium text-gomen">Payment status: PAID</p>
+          <Link href={`/admin/orders/${order.id}/labels`} className="text-sm font-medium text-primary">
+            Print Labels
+          </Link>
+        </div>
       )}
 
       {allergies.length > 0 ? (

@@ -212,6 +212,10 @@ export interface OrderRecord {
   revisions: OrderRevision[];
   feedback: OrderFeedback | null;
   completedAt: string | null;
+  /** Unguessable public token used in care QR codes. Not an order id. */
+  careToken: string | null;
+  /** Instruction text frozen for this order. Later template edits do not change it. */
+  care: CareSnapshot | null;
 }
 
 export interface Preferences {
@@ -300,11 +304,65 @@ export interface PromoCode {
   orderNumber: string | null;
 }
 
+export interface CareSections {
+  storage: string;
+  serving: string;
+  utensils: string;
+  reheating: string;
+  leftovers: string;
+  notes: string;
+}
+
+export interface CareInstruction {
+  id: string;
+  kind: "template" | "override";
+  name: string;
+  /** Foods this template or override applies to. */
+  foodIds: string[];
+  category: string;
+  /** Empty means any service. */
+  service: "" | OrderKind;
+  /** Empty means any weekly length. Catering only matches an empty duration. */
+  durationDays: 7 | 14 | null;
+  /** Override records can point at the template they extend. */
+  templateId: string | null;
+  sections: CareSections;
+  active: boolean;
+  /** Increases each time the kitchen edits this record. */
+  version: number;
+  /** True while the wording is still a draft and not approved food-safety guidance. */
+  placeholder: boolean;
+  updatedAt: string;
+}
+
+export interface CareSource {
+  id: string;
+  name: string;
+  version: number;
+}
+
+export interface CareFoodSnapshot {
+  foodId: string;
+  name: string;
+  sections: CareSections;
+  placeholder: boolean;
+  sources: CareSource[];
+}
+
+export interface CareSnapshot {
+  /** Shown as Instruction version, for example 1.2. */
+  version: string;
+  capturedAt: string;
+  placeholder: boolean;
+  foods: CareFoodSnapshot[];
+}
+
 export interface Database {
   users: UserRecord[];
   sessions: SessionRecord[];
   orders: OrderRecord[];
   promoCodes: PromoCode[];
+  careInstructions: CareInstruction[];
   menu: MenuItem[];
   settings: Settings;
   seq: number;
