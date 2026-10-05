@@ -7,8 +7,9 @@ import type { Database, Settings } from "@/lib/types";
 const FILE = path.join(process.cwd(), "data", "db.json");
 
 export const defaultSettings = (): Settings => ({
-  weeklyLeadDays: 7,
-  cateringLeadDays: 7,
+  minimumOrderLeadDays: 5,
+  weeklyLeadDays: 5,
+  cateringLeadDays: 5,
   minCateringGuests: 10,
   maxGuestsPerDay: 80,
   maxWeeklyServingsPerDay: 100,

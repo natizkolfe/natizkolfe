@@ -263,8 +263,7 @@ export function KitchenSettings() {
       const data = await api<{ settings: PublicSettings }>("/api/admin/settings", {
         method: "PATCH",
         body: JSON.stringify({
-          weeklyLeadDays: Number(settings?.weeklyLeadDays),
-          cateringLeadDays: Number(settings?.cateringLeadDays),
+          minimumOrderLeadDays: Number(settings?.minimumOrderLeadDays),
           minCateringGuests: Number(settings?.minCateringGuests),
           maxGuestsPerDay: Number(settings?.maxGuestsPerDay),
           maxWeeklyServingsPerDay: Number(settings?.maxWeeklyServingsPerDay),
@@ -291,11 +290,21 @@ export function KitchenSettings() {
 
   return (
     <div className="grid gap-6">
-      <PageIntro title="Notice and capacity" lede="Lead time can differ for weekly meals and catering. Guest capacity is what stops a day from being oversold." />
+      <PageIntro title="Notice and capacity" lede="Minimum order lead time applies to weekly meals and catering, for pickup and delivery. Guest capacity is what stops a day from being oversold." />
       <form className="grid gap-4 rounded-xl border border-border bg-card p-5" onSubmit={save}>
         <div className="grid gap-3 sm:grid-cols-2">
-          <NumberField label="Weekly notice, days" value={settings.weeklyLeadDays} onChange={(value) => setSettings({ ...settings, weeklyLeadDays: value })} />
-          <NumberField label="Catering notice, days" value={settings.cateringLeadDays} onChange={(value) => setSettings({ ...settings, cateringLeadDays: value })} />
+          <NumberField
+            label="Minimum order lead time, days"
+            value={settings.minimumOrderLeadDays}
+            onChange={(value) =>
+              setSettings({
+                ...settings,
+                minimumOrderLeadDays: value,
+                weeklyLeadDays: value,
+                cateringLeadDays: value,
+              })
+            }
+          />
           <NumberField label="Minimum guests" value={settings.minCateringGuests} onChange={(value) => setSettings({ ...settings, minCateringGuests: value })} />
           <NumberField label="Max guests a day" value={settings.maxGuestsPerDay} onChange={(value) => setSettings({ ...settings, maxGuestsPerDay: value })} />
           <NumberField label="Max weekly servings a day" value={settings.maxWeeklyServingsPerDay} onChange={(value) => setSettings({ ...settings, maxWeeklyServingsPerDay: value })} />

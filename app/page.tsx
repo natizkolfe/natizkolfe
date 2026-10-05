@@ -48,6 +48,20 @@ export default function HomePage() {
         <PlatterArt className="mx-auto w-full max-w-md" />
       </section>
 
+      <section className="mx-auto w-full max-w-6xl px-4 pb-10 sm:px-6">
+        <aside className="rounded-2xl border border-primary/35 bg-primary/5 px-5 py-5 sm:px-6">
+          <h2 className="font-display text-3xl">📅 Please Plan Ahead</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-7">
+            To ensure we have enough time to carefully prepare your order,{" "}
+            <strong>all Gebeta orders must be placed at least {settings.minimumOrderLeadDays} days in advance</strong>.
+          </p>
+          <p className="mt-2 max-w-3xl text-sm leading-7 text-muted-foreground">
+            Please select a pickup, delivery, or catering event date that is at least {settings.minimumOrderLeadDays} days from the date you place your order.
+          </p>
+          <p className="mt-3 text-sm font-medium">Thank you for helping us provide you with the best Gebeta experience.</p>
+        </aside>
+      </section>
+
       <section className="mx-auto grid w-full max-w-6xl items-start gap-4 px-4 sm:px-6 md:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.9fr)]">
         <article className="rounded-2xl border border-border bg-card p-6">
           <p className="text-xs tracking-[0.16em] text-primary uppercase">01</p>

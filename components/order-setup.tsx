@@ -11,10 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/client-api";
-import { formatDate } from "@/lib/dates";
+import { formatDate, isIsoDate } from "@/lib/dates";
 import { money } from "@/lib/format";
 import { CATERING_PRICE_PER_PERSON } from "@/lib/packages";
-import { defaultDraft, scheduleProblems } from "@/lib/orders";
+import { defaultDraft, leadTimeError, leadTimeNotice, scheduleProblems } from "@/lib/orders";
 import type { FastingPreference, OrderKind, PublicSettings } from "@/lib/types";
 
 const control = "h-11 bg-card px-3";
@@ -97,8 +97,28 @@ export function OrderSetup() {
     update({ guestCount });
   }, [settings, active]);
 
+  useEffect(() => {
+    if (!settings || !active) return;
+    const earliest = active.kind === "catering" ? settings.earliestCateringDate : settings.earliestWeeklyDate;
+    const current = active.kind === "catering" ? active.eventDate : active.startDate;
+    if (isIsoDate(current) && current < earliest) {
+      setError(leadTimeError(settings.minimumOrderLeadDays));
+    }
+  }, [settings, active]);
+
   function update(patch: Partial<NonNullable<typeof draft>>) {
     setDraft((current) => (current ? { ...current, ...patch } : current));
+  }
+
+  function chooseServiceDate(value: string) {
+    if (!settings || !active) return;
+    const earliest = active.kind === "catering" ? settings.earliestCateringDate : settings.earliestWeeklyDate;
+    if (!isIsoDate(value) || value < earliest) {
+      setError(leadTimeError(settings.minimumOrderLeadDays));
+      return;
+    }
+    setError("");
+    update(active.kind === "catering" ? { eventDate: value } : { startDate: value });
   }
 
   function continueOrder(days?: 7 | 14) {
@@ -189,8 +209,9 @@ export function OrderSetup() {
                 type="date"
                 min={settings.earliestCateringDate}
                 value={active.eventDate}
-                onChange={(event) => update({ eventDate: event.target.value })}
+                onChange={(event) => chooseServiceDate(event.target.value)}
               />
+              <p className="text-xs text-muted-foreground">{leadTimeNotice(settings.minimumOrderLeadDays)}</p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="eventTime">Time</Label>
@@ -241,11 +262,9 @@ export function OrderSetup() {
             type="date"
             min={settings.earliestWeeklyDate}
             value={active.startDate}
-            onChange={(event) => update({ startDate: event.target.value })}
+            onChange={(event) => chooseServiceDate(event.target.value)}
           />
-          <p className="text-xs text-muted-foreground">
-            Earliest day is {formatDate(settings.earliestWeeklyDate)}, {settings.weeklyLeadDays} days from today.
-          </p>
+          <p className="text-xs text-muted-foreground">{leadTimeNotice(settings.minimumOrderLeadDays)}</p>
         </div>
         <fieldset className="grid gap-3">
           <legend className="text-sm font-medium">Choose duration</legend>

@@ -23,8 +23,12 @@ export async function PATCH(request: Request) {
         }
         return value;
       };
-      if ("weeklyLeadDays" in body) next.weeklyLeadDays = number("weeklyLeadDays", 1, 30);
-      if ("cateringLeadDays" in body) next.cateringLeadDays = number("cateringLeadDays", 1, 30);
+      if ("minimumOrderLeadDays" in body) {
+        const lead = number("minimumOrderLeadDays", 1, 30);
+        next.minimumOrderLeadDays = lead;
+        next.weeklyLeadDays = lead;
+        next.cateringLeadDays = lead;
+      }
       if ("minCateringGuests" in body) next.minCateringGuests = number("minCateringGuests", 1, 40);
       if ("maxGuestsPerDay" in body) next.maxGuestsPerDay = number("maxGuestsPerDay", 8, 500);
       if ("maxWeeklyServingsPerDay" in body) {

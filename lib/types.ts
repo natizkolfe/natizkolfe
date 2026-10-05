@@ -256,6 +256,8 @@ export interface SessionRecord {
 }
 
 export interface Settings {
+  /** Days of notice required for weekly meals and catering, pickup and delivery. */
+  minimumOrderLeadDays: number;
   weeklyLeadDays: number;
   cateringLeadDays: number;
   minCateringGuests: number;

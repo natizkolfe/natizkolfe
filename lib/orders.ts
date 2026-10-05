@@ -99,13 +99,22 @@ export function initialCustomization(item: MenuItem, prefs?: Preferences | null)
   };
 }
 
+export function leadTimeNotice(days: number): string {
+  return `Orders require at least ${days} days' advance notice.`;
+}
+
+export function leadTimeError(days: number): string {
+  return `Please select a date at least ${days} days from today so we have enough time to prepare your order.`;
+}
+
 export function publicSettings(settings: Settings, now = new Date()): PublicSettings {
   const today = todayISO(settings.timezone, now);
+  const lead = settings.minimumOrderLeadDays;
   return {
     ...settings,
     today,
-    earliestWeeklyDate: addDays(today, settings.weeklyLeadDays),
-    earliestCateringDate: addDays(today, settings.cateringLeadDays),
+    earliestWeeklyDate: addDays(today, lead),
+    earliestCateringDate: addDays(today, lead),
   };
 }
 
@@ -264,9 +273,7 @@ function assertLeadTime(date: string, earliest: string, leadDays: number, label:
     throw new OrderError(`Choose a valid ${label} date.`);
   }
   if (date < earliest) {
-    throw new OrderError(
-      `${label[0].toUpperCase()}${label.slice(1)} must be on or after ${formatDate(earliest)}. Orders need at least ${leadDays} days of notice.`,
-    );
+    throw new OrderError(leadTimeError(leadDays));
   }
 }
 
@@ -412,7 +419,7 @@ export function scheduleProblems(draft: OrderDraft, settings: PublicSettings): s
     }
     if (!isIsoDate(draft.startDate)) return "Choose a valid first meal date.";
     if (draft.startDate < settings.earliestWeeklyDate) {
-      return `The first meal must be on or after ${formatDate(settings.earliestWeeklyDate)}. Weekly orders need at least ${settings.weeklyLeadDays} days of notice.`;
+      return leadTimeError(settings.minimumOrderLeadDays);
     }
     return null;
   }
@@ -426,7 +433,7 @@ export function scheduleProblems(draft: OrderDraft, settings: PublicSettings): s
     }
     if (!isIsoDate(draft.eventDate)) return "Choose a valid event date.";
     if (draft.eventDate < settings.earliestCateringDate) {
-      return `The event must be on or after ${formatDate(settings.earliestCateringDate)}. Catering needs at least ${settings.cateringLeadDays} days of notice.`;
+      return leadTimeError(settings.minimumOrderLeadDays);
     }
     if (!/^\d{2}:\d{2}$/.test(draft.eventTime)) return "Choose a pickup or delivery time.";
     return null;
@@ -439,9 +446,9 @@ export function validateDraft(db: Database, draft: OrderDraft, exceptId?: string
   const problem = scheduleProblems(draft, settings);
   if (problem) throw new OrderError(problem);
   if (draft.kind === "weekly") {
-    assertLeadTime(draft.startDate, settings.earliestWeeklyDate, settings.weeklyLeadDays, "first meal date");
+    assertLeadTime(draft.startDate, settings.earliestWeeklyDate, settings.minimumOrderLeadDays, "first meal date");
   } else {
-    assertLeadTime(draft.eventDate, settings.earliestCateringDate, settings.cateringLeadDays, "event date");
+    assertLeadTime(draft.eventDate, settings.earliestCateringDate, settings.minimumOrderLeadDays, "event date");
   }
 
   const lines = buildLines(db.menu, draft);

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { leadTimeNotice, publicSettings } from "@/lib/orders";
+import { readDb } from "@/lib/store";
 
 const ORDER_LINKS = [
   { href: "/menu", label: "Packages" },
@@ -7,6 +9,7 @@ const ORDER_LINKS = [
 ];
 
 export function SiteFooter() {
+  const notice = leadTimeNotice(publicSettings(readDb().settings).minimumOrderLeadDays);
   return (
     <footer className="mt-16 border-t border-border print:hidden">
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 sm:px-6 md:grid-cols-3">
@@ -19,7 +22,7 @@ export function SiteFooter() {
         <div className="text-sm leading-6">
           <p className="font-medium">Kitchen</p>
           <p className="text-muted-foreground">4473 Rowland N Dr, Stone Mountain, GA 30083</p>
-          <p className="text-muted-foreground">Orders need at least one week of notice.</p>
+          <p className="text-muted-foreground">{notice}</p>
           <Link href="/admin" className="mt-2 inline-block text-primary">
             Staff entrance
           </Link>
