@@ -26,12 +26,12 @@ export function PackageBoard() {
       {PACKAGES.map((pkg) => (
         <article key={pkg.id} className="flex h-full flex-col rounded-2xl border border-border bg-card p-6">
           <h3 className="font-display text-4xl">{pkg.title}</h3>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">{pkg.detail}</p>
-          <div className="mt-6 flex flex-wrap gap-2">
-            <Button className="h-10 px-3" render={<Link href={`/order?kind=weekly&table=${pkg.id}`} />}>
+          <p className="mt-3 min-h-12 text-sm leading-6 text-muted-foreground">{pkg.detail}</p>
+          <div className="mt-auto grid grid-cols-2 gap-2 pt-6">
+            <Button className="h-10 rounded-lg px-3" render={<Link href={`/order?kind=weekly&table=${pkg.id}`} />}>
               Weekly Meal
             </Button>
-            <Button variant="outline" className="h-10 bg-background px-3" render={<Link href={`/order?kind=catering&table=${pkg.id}`} />}>
+            <Button variant="outline" className="h-10 rounded-lg bg-background px-3" render={<Link href={`/order?kind=catering&table=${pkg.id}`} />}>
               Catering
             </Button>
           </div>

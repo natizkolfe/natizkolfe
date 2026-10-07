@@ -200,7 +200,7 @@ export function OrderSetup() {
               </p>
             ) : null}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
             <div className="grid gap-2">
               <Label htmlFor="eventDate">Event date</Label>
               <Input
@@ -211,7 +211,6 @@ export function OrderSetup() {
                 value={active.eventDate}
                 onChange={(event) => chooseServiceDate(event.target.value)}
               />
-              <p className="text-xs text-muted-foreground">{leadTimeNotice(settings.minimumOrderLeadDays)}</p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="eventTime">Time</Label>
@@ -223,6 +222,9 @@ export function OrderSetup() {
                 onChange={(event) => update({ eventTime: event.target.value })}
               />
             </div>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              {leadTimeNotice(settings.minimumOrderLeadDays)}
+            </p>
           </div>
           {capacity ? (
             <p className="text-sm leading-6 text-muted-foreground">
