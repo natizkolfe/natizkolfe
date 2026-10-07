@@ -5,8 +5,12 @@
   "scripts": {
     "dev": "next dev -p 47231 -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
+    "start": "node server.js",
+    "start:next": "next start",
     "lint": "eslint"
+  },
+  "engines": {
+    "node": ">=20.9.0"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

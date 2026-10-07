@@ -20,7 +20,7 @@ function sections(partial: Partial<CareSections>): CareSections {
   };
 }
 
-const WOT = ["misir-wot", "shiro-wot", "doro-wot", "key-wot", "kik-alicha", "beef-alicha", "atkilt-wot"];
+const WOT = ["misir-wot", "doro-wot", "key-wot", "kik-alicha", "beef-alicha", "atkilt-wot"];
 
 export function seedCareInstructions(): CareInstruction[] {
   return [
@@ -127,7 +127,7 @@ export function seedCareInstructions(): CareInstruction[] {
       id: "car_vegetables",
       kind: "template",
       name: "Cooked Vegetable Care",
-      foodIds: ["gomen", "fosolia"],
+      foodIds: ["gomen"],
       category: "Vegetables",
       service: "",
       durationDays: null,

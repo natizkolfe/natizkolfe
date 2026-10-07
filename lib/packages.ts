@@ -53,10 +53,8 @@ const FASTING_PACKAGE: MealPackage = {
   detail: "The standard fasting table. These dishes are already part of the package.",
   included: [
     { id: "misir-wot", label: "Misir Wot", side: "fasting" },
-    { id: "shiro-wot", label: "Shiro", side: "fasting" },
     { id: "gomen", label: "Gomen", side: "fasting" },
     { id: "atkilt-wot", label: "Atakilt", side: "fasting" },
-    { id: "fosolia", label: "Vegetable Side", side: "fasting" },
   ],
   addons: [
     { id: "kik-alicha", label: "Kik Alicha", side: "fasting", pricePerPerson: CATERING_ADDON_PRICE },
@@ -74,7 +72,7 @@ const NON_FASTING_PACKAGE: MealPackage = {
     { id: "awaze-tibs", label: "Tibs", side: "non_fasting" },
     { id: "beef-alicha", label: "Alicha", side: "non_fasting" },
     { id: "gomen", label: "Gomen", side: "non_fasting" },
-    { id: "timatim-salad", label: "Vegetable Side", side: "non_fasting" },
+    { id: "timatim-salad", label: "Timatim Salad", side: "non_fasting" },
   ],
   addons: [
     { id: "kitfo", label: "Kitfo", side: "non_fasting", pricePerPerson: CATERING_ADDON_PRICE },
@@ -120,7 +118,7 @@ export const TABLE_OPTIONS: {
 }[] = [
   {
     id: "fasting",
-    icons: ["shiro-wot", "gomen"],
+    icons: ["misir-wot", "gomen"],
     title: "Fasting",
     detail: "Traditional Ethiopian fasting meals.",
     note: "Recommended foods start selected",
@@ -134,7 +132,7 @@ export const TABLE_OPTIONS: {
   },
   {
     id: "mixed",
-    icons: ["shiro-wot", "awaze-tibs"],
+    icons: ["misir-wot", "awaze-tibs"],
     title: "Mixed",
     detail: "Combine fasting and non-fasting meals based on your preferences.",
     note: "Choose from both lists",
@@ -151,7 +149,6 @@ export function packageFor(preference: FastingPreference): MealPackage {
 /** Individual photos cut from the dish sheet. Swap a file later without changing the layout. */
 export const DISH_IMAGES: Record<string, string> = {
   "doro-wot": "/dishes/doro-wot.jpg",
-  "shiro-wot": "/dishes/shiro-wot.jpg",
   "misir-wot": "/dishes/misir-wot.jpg",
   "gomen": "/dishes/gomen.jpg",
   "kitfo": "/dishes/kitfo.jpg",
@@ -160,7 +157,6 @@ export const DISH_IMAGES: Record<string, string> = {
   "awaze-tibs": "/dishes/awaze-tibs.jpg",
   "yebesiga-alicha": "/dishes/yebesiga-alicha.jpg",
   "timatim-fitfit": "/dishes/timatim-fitfit.jpg",
-  fosolia: "/dishes/fosolia.jpg",
   "kik-alicha": "/dishes/kik-alicha.jpg",
   "quanta-firfir": "/dishes/quanta-firfir.jpg",
   "enkulal-firfir": "/dishes/enkulal-firfir.jpg",

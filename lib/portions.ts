@@ -53,10 +53,8 @@ function addon(id: string, label: string, description: string, side: FoodOffer["
 
 const MEALS: FoodOffer[] = [
   meal("misir-wot", "Misir Wot", "Red lentils in a berbere sauce.", "fasting"),
-  meal("shiro-wot", "Shiro", "Chickpea stew cooked down with berbere.", "fasting"),
   meal("gomen", "Gomen", "Collard greens with garlic, ginger, and green chili.", "fasting"),
   meal("atkilt-wot", "Atakilt", "Cabbage, potato, and carrot simmered with turmeric.", "fasting"),
-  meal("fosolia", "Vegetable Side", "Green beans and carrots with garlic and turmeric.", "fasting"),
   meal("doro-wot", "Doro Wot", "Traditional Ethiopian chicken stew.", "non_fasting"),
   meal("awaze-tibs", "Tibs", "Sautéed beef with peppers and awaze.", "non_fasting"),
   meal("beef-alicha", "Beef Alicha", "A mild beef stew with turmeric and ginger.", "non_fasting"),
@@ -75,7 +73,7 @@ const ADDONS: FoodOffer[] = [
 const OFFERS = [...MEALS, ...ADDONS];
 const BY_ID = new Map(OFFERS.map((entry) => [entry.id, entry]));
 
-const FASTING_MEAL_IDS = ["misir-wot", "shiro-wot", "gomen", "atkilt-wot", "fosolia"];
+const FASTING_MEAL_IDS = ["misir-wot", "gomen", "atkilt-wot"];
 const NON_FASTING_MEAL_IDS = ["doro-wot", "awaze-tibs", "beef-alicha", "gomen", "timatim-salad"];
 
 export const CONTAINER_MARK: Record<ContainerShape, { src: string; alt: string }> = {
