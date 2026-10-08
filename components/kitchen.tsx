@@ -436,6 +436,101 @@ function NumberField({
 
 type CustomerRow = PublicUser & { orderCount: number; paidTotal: number };
 
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+function MonthlyReportDownload() {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const years = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2];
+
+  async function download() {
+    setPending(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/reports/monthly?year=${year}&month=${month}`);
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
+        throw new Error(data.error || data.message || "Could not build the report.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const stamp = `${year}-${String(month).padStart(2, "0")}`;
+      link.href = url;
+      link.download = `gebeta-orders-${stamp}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not download the report.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-xl border border-border bg-card p-4">
+      <p className="font-medium">Monthly order report</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Downloads a CSV for Excel. One row per order placed in that month.
+      </p>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div className="grid gap-2">
+          <Label htmlFor="report-month">Month</Label>
+          <select
+            id="report-month"
+            className="h-11 rounded-lg border border-border bg-background px-3 text-sm"
+            value={month}
+            onChange={(event) => setMonth(Number(event.target.value))}
+          >
+            {MONTHS.map((label, index) => (
+              <option key={label} value={index + 1}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="report-year">Year</Label>
+          <select
+            id="report-year"
+            className="h-11 rounded-lg border border-border bg-background px-3 text-sm"
+            value={year}
+            onChange={(event) => setYear(Number(event.target.value))}
+          >
+            {years.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Button type="button" className="h-11 px-4" disabled={pending} onClick={download}>
+          {pending ? "Preparing…" : "Download CSV"}
+        </Button>
+      </div>
+      {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
 export function KitchenCustomers() {
   const [customers, setCustomers] = useState<CustomerRow[] | null>(null);
   const [error, setError] = useState("");
@@ -450,7 +545,8 @@ export function KitchenCustomers() {
 
   return (
     <div>
-        <PageIntro title="Customers" lede="Phone numbers are here because pickup and delivery notices go to the customer." />
+      <PageIntro title="Customers" lede="Phone numbers are here because pickup and delivery notices go to the customer." />
+      <MonthlyReportDownload />
       {customers.length === 0 ? (
         <p className="mt-6 text-sm text-muted-foreground">No accounts yet.</p>
       ) : (
